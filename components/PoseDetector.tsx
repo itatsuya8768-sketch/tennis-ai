@@ -1,0 +1,168 @@
+"use client";
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+
+export interface PoseMetrics {
+  leftElbowAngle:  number;
+  rightElbowAngle: number;
+  leftKneeAngle:   number;
+  rightKneeAngle:  number;
+  spineAngle:      number;
+  landmarksRaw:    number[][];
+}
+
+interface Props {
+  videoRef: React.RefObject<HTMLVideoElement>;
+  onMetrics?: (m: PoseMetrics) => void;
+  active: boolean;
+}
+
+export interface PoseDetectorHandle {
+  getLatestMetrics: () => PoseMetrics | null;
+}
+
+function angleBetween(a: number[], b: number[], c: number[]) {
+  const ab = [a[0] - b[0], a[1] - b[1]];
+  const cb = [c[0] - b[0], c[1] - b[1]];
+  const dot = ab[0] * cb[0] + ab[1] * cb[1];
+  const magAB = Math.hypot(...ab);
+  const magCB = Math.hypot(...cb);
+  if (magAB === 0 || magCB === 0) return 0;
+  return Math.round((Math.acos(Math.max(-1, Math.min(1, dot / (magAB * magCB)))) * 180) / Math.PI);
+}
+
+const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
+  ({ videoRef, onMetrics, active }, ref) => {
+    const canvasRef  = useRef<HTMLCanvasElement>(null);
+    const poseRef    = useRef<any>(null);
+    const latestRef  = useRef<PoseMetrics | null>(null);
+    const rafRef     = useRef<number>(0);
+
+    useImperativeHandle(ref, () => ({
+      getLatestMetrics: () => latestRef.current,
+    }));
+
+    const onResults = useCallback((results: any) => {
+      const canvas = canvasRef.current;
+      const video  = videoRef.current;
+      if (!canvas || !video) return;
+
+      canvas.width  = video.videoWidth  || video.clientWidth;
+      canvas.height = video.videoHeight || video.clientHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!results.poseLandmarks) return;
+
+      const lm = results.poseLandmarks as { x: number; y: number; z: number; visibility?: number }[];
+      const pts = lm.map(p => [p.x * canvas.width, p.y * canvas.height, p.z]);
+
+      // ── 骨格ワイヤーフレーム描画 ──
+      const connections: [number, number][] = [
+        [11,12],[11,13],[13,15],[12,14],[14,16],
+        [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
+      ];
+
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth   = 3;
+      connections.forEach(([a, b]) => {
+        if (!pts[a] || !pts[b]) return;
+        ctx.beginPath();
+        ctx.moveTo(pts[a][0], pts[a][1]);
+        ctx.lineTo(pts[b][0], pts[b][1]);
+        ctx.stroke();
+      });
+
+      // 関節点
+      const keyPoints = [11,12,13,14,15,16,23,24,25,26,27,28];
+      keyPoints.forEach(i => {
+        if (!pts[i]) return;
+        ctx.beginPath();
+        ctx.arc(pts[i][0], pts[i][1], 6, 0, Math.PI * 2);
+        ctx.fillStyle = lm[i].visibility && lm[i].visibility! > 0.5 ? "#84cc16" : "#f59e0b";
+        ctx.fill();
+      });
+
+      // ── 角度計測 ──
+      const metrics: PoseMetrics = {
+        rightElbowAngle: pts[12] && pts[14] && pts[16] ? angleBetween(pts[12], pts[14], pts[16]) : 0,
+        leftElbowAngle:  pts[11] && pts[13] && pts[15] ? angleBetween(pts[11], pts[13], pts[15]) : 0,
+        rightKneeAngle:  pts[24] && pts[26] && pts[28] ? angleBetween(pts[24], pts[26], pts[28]) : 0,
+        leftKneeAngle:   pts[23] && pts[25] && pts[27] ? angleBetween(pts[23], pts[25], pts[27]) : 0,
+        spineAngle:      pts[11] && pts[23] ? angleBetween(
+          [pts[11][0], pts[11][1] - 50], pts[11], pts[23]
+        ) : 0,
+        landmarksRaw: pts,
+      };
+
+      latestRef.current = metrics;
+      onMetrics?.(metrics);
+    }, [videoRef, onMetrics]);
+
+    useEffect(() => {
+      if (!active) return;
+
+      let cancelled = false;
+
+      const init = async () => {
+        try {
+          // MediaPipe Pose をCDNから動的インポート
+          const { Pose } = await import("@mediapipe/pose");
+          if (cancelled) return;
+
+          const pose = new Pose({
+            locateFile: (file: string) =>
+              `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+          });
+
+          pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+
+          pose.onResults(onResults);
+          poseRef.current = pose;
+
+          const video = videoRef.current;
+          if (!video) return;
+
+          const detect = async () => {
+            if (cancelled) return;
+            if (video.readyState >= 2 && !video.paused) {
+              await pose.send({ image: video });
+            }
+            rafRef.current = requestAnimationFrame(detect);
+          };
+          rafRef.current = requestAnimationFrame(detect);
+
+        } catch (e) {
+          console.warn("MediaPipe init error:", e);
+        }
+      };
+
+      init();
+
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(rafRef.current);
+        poseRef.current?.close?.();
+      };
+    }, [active, onResults, videoRef]);
+
+    return (
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: "absolute", inset: 0,
+          width: "100%", height: "100%",
+          pointerEvents: "none",
+        }}
+      />
+    );
+  }
+);
+
+PoseDetector.displayName = "PoseDetector";
+export default PoseDetector;

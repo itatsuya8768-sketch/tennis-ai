@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  font-family: 'Noto Sans JP', 'Hiragino Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* スクロールバー細め */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+/* range input */
+input[type="range"] { cursor: pointer; }
+
+/* tap highlight 除去 */
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* ローディングアニメーション */
+@keyframes dashSpin {
+  from { stroke-dashoffset: 251; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.animate-fade-in  { animation: fadeIn 0.4s ease both; }
+.animate-pulse-ring { animation: pulse-ring 1.4s ease-out infinite; }
