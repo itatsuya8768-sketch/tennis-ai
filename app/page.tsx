@@ -250,9 +250,11 @@ export default function HomePage() {
               {[{label:"フォームスコア",value:`${report.formScore}`,unit:"pt",color:"#84cc16"},{label:"怪我リスク",value:report.injuryRisk,unit:"",color:hasPain?"#f59e0b":"#22c55e"},{label:"スイング速度",value:`${report.swingSpeed}`,unit:"km/h",color:"#38bdf8"}].map(k=><div key={k.label} style={{textAlign:"center"}}><div style={{fontSize:isMobile?18:22,fontWeight:900,color:k.color,lineHeight:1}}>{k.value}<span style={{fontSize:10}}>{k.unit}</span></div><div style={{fontSize:9,color:"#94a3b8",marginTop:4}}>{k.label}</div></div>)}
             </div>
 
+            <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",marginTop:-8,marginBottom:16}}>※ スコア・速度・角度などの数値はAIによる推定値です</div>
+
             {/* スコア詳細（無料） */}
             <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
-              <div style={{fontWeight:800,fontSize:14,color:"#0f172a",marginBottom:12}}>📊 スコア詳細</div>
+              <div style={{fontWeight:800,fontSize:14,color:"#0f172a",marginBottom:12}}>📊 スコア詳細（AI推定）</div>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <ScoreBar label="フォームスコア総合" value={report.formScore} color="#84cc16"/>
                 <ScoreBar label="フットワーク安定度" value={report.footworkScore} color="#22c55e"/>
