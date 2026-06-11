@@ -17,7 +17,7 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: "https://tennis-iswqzf6lj-tatsuya8768-s-projects.vercel.app/auth/callback" },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) { setError(error.message); setLoading(false); return; }
     setDone(true);
