@@ -26,8 +26,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    // 無料利用回数の制限（1アカウント3回まで・Premiumは無制限）
+    // 利用回数の制限（無料: 累計3回 / Premium: 月30回）
     const FREE_LIMIT = 3;
+    const PREMIUM_MONTHLY_LIMIT = 30;
     let isPremium = false;
     try {
       const { data: prof } = await supabase
@@ -47,6 +48,26 @@ export async function POST(req: NextRequest) {
           {
             error: `無料診断は${FREE_LIMIT}回までです。続けるにはPremiumプランにご登録ください。`,
             code: "FREE_LIMIT_REACHED",
+          },
+          { status: 402 }
+        );
+      }
+    } else {
+      // Premium: 月間上限（カレンダー月・UTC基準）
+      const now = new Date();
+      const monthStart = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+      ).toISOString();
+      const { count } = await supabase
+        .from("diagnoses")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", monthStart);
+      if ((count ?? 0) >= PREMIUM_MONTHLY_LIMIT) {
+        return NextResponse.json(
+          {
+            error: `今月の診断回数が上限（${PREMIUM_MONTHLY_LIMIT}回/月）に達しました。来月1日にリセットされます。`,
+            code: "MONTHLY_LIMIT_REACHED",
           },
           { status: 402 }
         );
