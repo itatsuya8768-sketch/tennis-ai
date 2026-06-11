@@ -26,6 +26,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
+    // 無料利用回数の制限（1アカウント3回まで・Premiumは無制限）
+    const FREE_LIMIT = 3;
+    let isPremium = false;
+    try {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("is_premium")
+        .eq("id", user.id)
+        .maybeSingle();
+      isPremium = !!prof?.is_premium;
+    } catch {}
+    if (!isPremium) {
+      const { count } = await supabase
+        .from("diagnoses")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if ((count ?? 0) >= FREE_LIMIT) {
+        return NextResponse.json(
+          {
+            error: `無料診断は${FREE_LIMIT}回までです。続けるにはPremiumプランにご登録ください。`,
+            code: "FREE_LIMIT_REACHED",
+          },
+          { status: 402 }
+        );
+      }
+    }
+
     const body = await req.json();
     const profile = body.profile;
     const poseMetrics = body.poseMetrics ?? null;
@@ -124,7 +151,7 @@ ${compareInstruction}
     let messageContent: Anthropic.MessageParam["content"];
     if (frames.length > 0) {
       messageContent = [
-        ...frames.slice(0, 8).map((frame) => ({
+        ...frames.slice(0, 12).map((frame) => ({
           type: "image" as const,
           source: {
             type: "base64" as const,

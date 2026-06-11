@@ -72,14 +72,15 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
         const dur=video.duration;
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
         const scanRange=Math.min(dur,10);const times:number[]=[];
-        for(let t=0.5;t<=scanRange;t+=0.5){times.push(t);if(times.length>=8)break;}
-        if(times.length<4&&dur>0){times.length=0;for(let i=0;i<4;i++)times.push(dur*(i+1)/5);}
+        const FRAME_COUNT=12;
+        const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
+        for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}
         console.log(`フレーム抽出結果: ${results.length}枚`);
         resolve(results);
       }catch(e){console.warn("extractFrames:",e);resolve([]);}
     };
-    run();setTimeout(()=>resolve(results),20000);
+    run();setTimeout(()=>resolve(results),30000);
   });
 }
 
