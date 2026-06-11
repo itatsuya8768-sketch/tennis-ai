@@ -258,7 +258,7 @@ export default function HomePage() {
                 <ScoreBar label="フットワーク安定度" value={report.footworkScore} color="#22c55e"/>
                 <ScoreBar label="インパクト時の肘角度" value={report.elbowAngle} max={180} color="#38bdf8" unit="°"/>
               </div>
-              {shotCategory&&<div style={{marginTop:10,padding:"8px 12px",borderRadius:8,background:"#f0fdf4",fontSize:11,color:"#15803d",fontWeight:600}}>🎾 {shotCategory}（{shotType}）の診断結果</div>}
+              {shotCategory&&<div style={{marginTop:10,padding:"8px 12px",borderRadius:8,background:"#f0fdf4",fontSize:11,color:"#15803d",fontWeight:600}}>🎾 {shotCategory}{shotType?`（${shotType}）`:""}の診断結果</div>}
             </div>
 
             {/* 入力サマリー */}
@@ -273,14 +273,8 @@ export default function HomePage() {
                 <div style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>📋 詳細診断レポート</div>
                 <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700}}>続きはPremium</span>
               </div>
-              <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:10,whiteSpace:"pre-wrap"}}>
-                {report.sections.formAnalysis.substring(0, Math.floor(report.sections.formAnalysis.length / 3))}...
-              </div>
-              <div style={{position:"relative",overflow:"hidden",borderRadius:10,marginBottom:14}}>
-                <div style={{background:"#f8fafc",padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,whiteSpace:"pre-wrap",maxHeight:120,overflow:"hidden"}}>
-                  {report.sections.formAnalysis.substring(Math.floor(report.sections.formAnalysis.length / 3))}
-                </div>
-                <div style={{position:"absolute",bottom:0,left:0,right:0,height:80,background:"linear-gradient(to bottom, transparent, #fff)",pointerEvents:"none"}}/>
+              <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:14,whiteSpace:"pre-wrap",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+                {report.sections.formAnalysis}
               </div>
               <div style={{textAlign:"center",padding:"16px 14px",background:"linear-gradient(135deg,#fef9c3,#fff7ed)",borderRadius:12,border:"1px solid #fde047"}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:10}}>🔒 この続きと詳細アドバイスをすべて読む</div>
