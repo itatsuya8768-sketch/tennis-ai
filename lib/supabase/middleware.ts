@@ -25,9 +25,9 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 未ログインユーザーを /login にリダイレクト（認証必須ページのみ）
-  const protectedPaths = ["/history"];
-  const isProtected = protectedPaths.some(p => request.nextUrl.pathname.startsWith(p));
+  // 未ログインユーザーを /login にリダイレクト（診断ページ・履歴は要ログイン）
+  const path = request.nextUrl.pathname;
+  const isProtected = path === "/" || path.startsWith("/history");
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
