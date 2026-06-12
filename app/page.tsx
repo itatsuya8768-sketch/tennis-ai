@@ -136,6 +136,15 @@ export default function HomePage() {
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
   };
 
+  const goPremium=async()=>{
+    try{
+      const res=await fetch("/api/checkout",{method:"POST"});
+      const d=await res.json();
+      if(d.url){window.location.href=d.url;}
+      else{alert(d.error??"決済の開始に失敗しました");}
+    }catch{alert("決済の開始に失敗しました");}
+  };
+
   const showLeft=!isMobile||activeTab==="input";
   const showRight=!isMobile||activeTab==="result";
 
@@ -287,7 +296,7 @@ export default function HomePage() {
                   • 怪我予防エクササイズ3選<br/>
                   • 週次スコア推移グラフ
                 </div>
-                <button style={{width:"100%",padding:"14px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(132,204,22,0.4)"}}>
+                <button onClick={goPremium} style={{width:"100%",padding:"14px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(132,204,22,0.4)"}}>
                   続きを読む → Premiumプランへ ¥999/月
                 </button>
 
@@ -297,7 +306,7 @@ export default function HomePage() {
             <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
               <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🔑 プレミアムプランで<br/><span style={{color:"#84cc16"}}>完全AI診断</span>を解放する</div>
               <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 詳細フォーム解析アドバイス","✅ 打点・フットワーク改善提案","✅ 怪我に合わせた代替フォーム提案","✅ 週次スコア推移グラフ","✅ プロ選手との詳細比較"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
-              <button style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(132,204,22,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
+              <button onClick={goPremium} style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(132,204,22,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
               
             </div>
           </div>}
