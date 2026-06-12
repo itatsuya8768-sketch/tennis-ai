@@ -69,7 +69,21 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
     const run=async()=>{
       try{
         await new Promise<void>((res,rej)=>{const tid=setTimeout(()=>rej(new Error("timeout")),12000);video.onloadedmetadata=()=>{clearTimeout(tid);res();};video.onerror=()=>{clearTimeout(tid);rej(new Error("error"));};});
-        const dur=video.duration;
+        let dur=video.duration;
+        if(!isFinite(dur)||dur<=0){
+          // 一部のMOV/MP4は duration が Infinity になる → 強制シークで実測
+          dur=await new Promise<number>((res)=>{
+            const to=setTimeout(()=>res(0),3000);
+            const onDur=()=>{
+              if(isFinite(video.duration)&&video.duration>0){
+                clearTimeout(to);video.removeEventListener("durationchange",onDur);
+                video.currentTime=0;res(video.duration);
+              }
+            };
+            video.addEventListener("durationchange",onDur);
+            try{video.currentTime=1e7;}catch{clearTimeout(to);res(0);}
+          });
+        }
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
         const scanRange=Math.min(dur,10);const times:number[]=[];
         const FRAME_COUNT=12;
@@ -97,6 +111,7 @@ export default function HomePage() {
   const [videoUrl,setVideoUrl]=useState<string|null>(null);
   const [hasFrames,setHasFrames]=useState(false);
   const [videoDuration,setVideoDuration]=useState<number|null>(null);
+  const [videoErr,setVideoErr]=useState(false);
   const [comparePlayer,setComparePlayer]=useState<string|null>(null);
   const [shotCategory,setShotCategory]=useState<string|null>(null);
   const [shotType,setShotType]=useState<string|null>(null);
@@ -118,8 +133,14 @@ export default function HomePage() {
     const f=("dataTransfer" in e)?e.dataTransfer?.files?.[0]:(e.target as HTMLInputElement).files?.[0];
     if(!f)return;
     const url=URL.createObjectURL(f);
-    setVideoFile(f);setVideoUrl(url);setHasFrames(true);setPoseActive(false);setVideoDuration(null);
-    const tmp=document.createElement("video");tmp.src=url;tmp.onloadedmetadata=()=>setVideoDuration(tmp.duration);
+    setVideoFile(f);setVideoUrl(url);setHasFrames(true);setPoseActive(false);setVideoDuration(null);setVideoErr(false);
+    const tmp=document.createElement("video");tmp.preload="metadata";tmp.muted=true;tmp.src=url;
+    tmp.onloadedmetadata=()=>{
+      if(isFinite(tmp.duration)&&tmp.duration>0){setVideoDuration(tmp.duration);return;}
+      const onDur=()=>{if(isFinite(tmp.duration)&&tmp.duration>0){tmp.removeEventListener("durationchange",onDur);setVideoDuration(tmp.duration);}};
+      tmp.addEventListener("durationchange",onDur);
+      try{tmp.currentTime=1e7;}catch{}
+    };
   },[]);
 
   const handleStart=async()=>{
@@ -233,7 +254,8 @@ export default function HomePage() {
             <div onDragOver={e=>e.preventDefault()} onDrop={handleDrop} onClick={()=>fileRef.current?.click()} style={{border:videoFile?"2px solid #84cc16":"2px dashed #cbd5e1",borderRadius:14,padding:"28px 16px",marginBottom:16,background:videoFile?"#f0fdf4":"#f8fafc",display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer",textAlign:"center"}}>
               {videoFile?<><span style={{fontSize:36}}>🎬</span><span style={{fontSize:13,fontWeight:700,color:"#16a34a",wordBreak:"break-all"}}>{videoFile.name}</span><span style={{fontSize:11,color:"#84cc16"}}>✓ アップロード完了</span></>:<><span style={{fontSize:42}}>📹</span><span style={{fontSize:13,fontWeight:700,color:"#475569"}}>{isMobile?"タップして動画を選択":"動画をドラッグ＆ドロップ"}<br/><span style={{color:"#84cc16"}}>{isMobile?"":"または クリックして選択"}</span></span><span style={{fontSize:11,color:"#94a3b8"}}>MP4 / MOV / AVI • 最大500MB</span></>}
             </div>
-            <input ref={fileRef} type="file" accept="video/*" style={{display:"none"}} onChange={handleDrop as any}/>
+            <input ref={fileRef} type="file" accept="video/*,video/quicktime,.mov,.mp4" style={{display:"none"}} onChange={handleDrop as any}/>
+            {videoErr&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#991b1b",marginBottom:12,fontWeight:600,lineHeight:1.7}}>⚠️ この動画はブラウザで再生できませんでした（iPhoneのHEVC形式などの可能性）。<br/><strong>MP4形式</strong>で撮影・変換してお試しください。iPhoneは「設定 ▸ カメラ ▸ フォーマット ▸ <strong>互換性優先</strong>」にすると改善します。</div>}
             <button onClick={handleStart} disabled={status==="loading"} style={{width:"100%",padding:"17px",borderRadius:14,background:status==="loading"?"#e2e8f0":"linear-gradient(90deg,#84cc16,#22c55e)",color:status==="loading"?"#94a3b8":"#fff",fontWeight:900,fontSize:16,border:"none",cursor:status==="loading"?"not-allowed":"pointer",boxShadow:status==="loading"?"none":"0 4px 20px rgba(132,204,22,0.4)",letterSpacing:"0.03em"}}>
               {status==="loading"?"⏳ AI解析中...":"🤖 AI精密診断を開始する"}
             </button>
@@ -243,7 +265,7 @@ export default function HomePage() {
         {showRight&&<div style={{minWidth:0}}>
           {/* 動画プレビュー */}
           <div style={{background:"#0f172a",borderRadius:20,overflow:"hidden",position:"relative",marginBottom:16,aspectRatio:"16/9",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {videoUrl?<><video ref={videoRef} src={videoUrl} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}} controls muted playsInline/><PoseDetector ref={poseRef} videoRef={videoRef} active={poseActive} onMetrics={setPoseMetrics}/></>:<div style={{textAlign:"center",color:"#475569",padding:16}}><svg width="160" height="100" viewBox="0 0 160 100" style={{display:"block",margin:"0 auto 12px"}}><circle cx="80" cy="12" r="8" fill="#84cc16" opacity="0.7"/><line x1="80" y1="20" x2="80" y2="48" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="34" x2="48" y2="58" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="34" x2="112" y2="58" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="48" x2="62" y2="88" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="48" x2="98" y2="88" stroke="#84cc16" strokeWidth="2.5"/>{([[48,58],[112,58],[62,88],[98,88],[80,48]] as [number,number][]).map(([x,y],i)=><circle key={i} cx={x} cy={y} r={4} fill="#22c55e" opacity="0.8"/>)}</svg><div style={{fontSize:13,fontWeight:700}}>骨格ワイヤーフレーム</div><div style={{fontSize:11,marginTop:4,color:"#334155"}}>動画をアップロードすると関節ポイントが表示されます</div></div>}
+            {videoUrl?<><video ref={videoRef} src={videoUrl} onError={()=>setVideoErr(true)} onLoadedData={()=>setVideoErr(false)} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}} controls muted playsInline/><PoseDetector ref={poseRef} videoRef={videoRef} active={poseActive} onMetrics={setPoseMetrics}/></>:<div style={{textAlign:"center",color:"#475569",padding:16}}><svg width="160" height="100" viewBox="0 0 160 100" style={{display:"block",margin:"0 auto 12px"}}><circle cx="80" cy="12" r="8" fill="#84cc16" opacity="0.7"/><line x1="80" y1="20" x2="80" y2="48" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="34" x2="48" y2="58" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="34" x2="112" y2="58" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="48" x2="62" y2="88" stroke="#84cc16" strokeWidth="2.5"/><line x1="80" y1="48" x2="98" y2="88" stroke="#84cc16" strokeWidth="2.5"/>{([[48,58],[112,58],[62,88],[98,88],[80,48]] as [number,number][]).map(([x,y],i)=><circle key={i} cx={x} cy={y} r={4} fill="#22c55e" opacity="0.8"/>)}</svg><div style={{fontSize:13,fontWeight:700}}>骨格ワイヤーフレーム</div><div style={{fontSize:11,marginTop:4,color:"#334155"}}>動画をアップロードすると関節ポイントが表示されます</div></div>}
             <div style={{position:"absolute",top:10,left:10,background:"rgba(132,204,22,0.15)",WebkitBackdropFilter:"blur(8px)",backdropFilter:"blur(8px)",border:"1px solid rgba(132,204,22,0.4)",borderRadius:8,padding:"4px 10px",fontSize:10,color:"#84cc16",fontWeight:700}}>{poseActive?"🔴 LIVE 骨格検出中":"📡 MediaPipe Pose Detection"}</div>
             {poseMetrics&&poseActive&&<div style={{position:"absolute",bottom:10,right:10,background:"rgba(15,23,42,0.85)",borderRadius:10,padding:"8px 12px",fontSize:10,color:"#fff",lineHeight:1.8}}><div>右肘：{poseMetrics.rightElbowAngle}°</div><div>左肘：{poseMetrics.leftElbowAngle}°</div><div>右膝：{poseMetrics.rightKneeAngle}°</div></div>}
           </div>
