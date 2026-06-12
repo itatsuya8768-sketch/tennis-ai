@@ -310,19 +310,6 @@ export default function HomePage() {
               <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:14,whiteSpace:"pre-wrap",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
                 {report.sections.formAnalysis}
               </div>
-              <div style={{textAlign:"center",padding:"16px 14px",background:"linear-gradient(135deg,#fef9c3,#fff7ed)",borderRadius:12,border:"1px solid #fde047"}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:10}}>🔒 この続きと詳細アドバイスをすべて読む</div>
-                <div style={{fontSize:11,color:"#78350f",marginBottom:12,lineHeight:1.6}}>
-                  • フォーム改善の具体的ドリル<br/>
-                  • 打点・フットワークの詳細分析<br/>
-                  • 怪我予防エクササイズ3選<br/>
-                  • 週次スコア推移グラフ
-                </div>
-                <button onClick={goPremium} style={{width:"100%",padding:"14px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(132,204,22,0.4)"}}>
-                  続きを読む → Premiumプランへ ¥999/月
-                </button>
-
-              </div>
             </div>
             {/* Premium CTA */}
             <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -7,6 +7,8 @@ import Link from "next/link";
 export default function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -17,6 +19,26 @@ export default function AuthButton() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) { setIsPremium(false); return; }
+    const supabase = createClient();
+    supabase.from("profiles").select("is_premium").eq("id", user.id).maybeSingle()
+      .then(({ data }) => setIsPremium(!!data?.is_premium));
+  }, [user]);
+
+  const goPremium = async () => {
+    setLoadingCheckout(true);
+    try {
+      const res = await fetch("/api/checkout", { method: "POST" });
+      const d = await res.json();
+      if (d.url) { window.location.href = d.url; return; }
+      alert(d.error ?? "決済の開始に失敗しました");
+    } catch {
+      alert("決済の開始に失敗しました");
+    }
+    setLoadingCheckout(false);
+  };
 
   if (!mounted) return (
     <div style={{ width: 80, height: 32 }} />
@@ -41,7 +63,21 @@ export default function AuthButton() {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-
+      {isPremium ? (
+        <span style={{
+          fontSize: 11, fontWeight: 800, color: "#16a34a",
+          padding: "6px 12px", borderRadius: 99,
+          background: "#f0fdf4", border: "1px solid #bbf7d0",
+        }}>✓ Premium</span>
+      ) : (
+        <button onClick={goPremium} disabled={loadingCheckout} style={{
+          padding: "7px 16px", borderRadius: 99, border: "none",
+          background: "linear-gradient(90deg,#f59e0b,#f97316)",
+          color: "#fff", fontSize: 12, fontWeight: 800,
+          cursor: loadingCheckout ? "wait" : "pointer",
+          boxShadow: "0 2px 10px rgba(245,158,11,0.35)",
+        }}>{loadingCheckout ? "..." : "⭐ 有料登録"}</button>
+      )}
       <button onClick={signOut} style={{
         padding: "7px 14px", borderRadius: 8, border: "1px solid #e2e8f0",
         background: "#f8fafc", color: "#64748b", fontSize: 12,
@@ -50,4 +86,3 @@ export default function AuthButton() {
     </div>
   );
 }
-
