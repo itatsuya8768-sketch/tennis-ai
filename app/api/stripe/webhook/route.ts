@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (userId) {
-          await admin.from("profiles").upsert(
+          const { error } = await admin.from("profiles").upsert(
             {
               id: userId,
               is_premium: true,
@@ -52,6 +52,10 @@ export async function POST(req: NextRequest) {
             },
             { onConflict: "id" }
           );
+          if (error) {
+            console.error("webhook profiles upsert error:", error);
+            return NextResponse.json({ error: `DB upsert failed: ${error.message}` }, { status: 500 });
+          }
         }
         break;
       }
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (prof?.id) {
-          await admin
+          const { error } = await admin
             .from("profiles")
             .update({
               is_premium: active,
@@ -80,6 +84,10 @@ export async function POST(req: NextRequest) {
               updated_at: new Date().toISOString(),
             })
             .eq("id", prof.id);
+          if (error) {
+            console.error("webhook profiles update error:", error);
+            return NextResponse.json({ error: `DB update failed: ${error.message}` }, { status: 500 });
+          }
         }
         break;
       }

@@ -126,6 +126,17 @@ export default function HomePage() {
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
   const hasPain=painAreas.length>0;
 
+  // 決済から戻ってきたら Premium 状態を同期（Webhookの保険）
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get("checkout")==="success"){
+      fetch("/api/premium/sync",{method:"POST"}).catch(()=>{}).finally(()=>{
+        window.history.replaceState({},"",window.location.pathname);
+        window.location.reload();
+      });
+    }
+  },[]);
+
   const togglePain=(area:string)=>{setPainAreas(prev=>{if(prev.includes(area)){setPainLevels(lv=>{const n={...lv};delete n[area];return n;});return prev.filter(a=>a!==area);}setPainLevels(lv=>({...lv,[area]:2}));return [...prev,area];});};
 
   const handleDrop=useCallback((e:React.DragEvent|React.ChangeEvent<HTMLInputElement>)=>{
