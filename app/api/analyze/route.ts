@@ -191,6 +191,7 @@ ${compareInstruction}
     const message = await anthropic.messages.create({
       model,
       max_tokens: 2500,
+      temperature: 0, // 出力のブレを最小化（同じ動画なら毎回ほぼ同じスコアにする）
       messages: [{ role: "user", content: messageContent }],
     });
 

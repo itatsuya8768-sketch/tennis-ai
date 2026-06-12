@@ -41,9 +41,7 @@ export default function LoginPage() {
         <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748b"}}>
           アカウントをお持ちでない方は <Link href="/signup" style={{color:"#16a34a",fontWeight:700,textDecoration:"none"}}>新規登録</Link>
         </div>
-        <div style={{textAlign:"center",marginTop:8}}>
-          <Link href="/" style={{fontSize:12,color:"#94a3b8",textDecoration:"none"}}>← ログインせずに試してみる</Link>
-        </div>
+        <Link href="/signup" style={{display:"block",textAlign:"center",marginTop:12,padding:"12px",borderRadius:12,border:"2px solid #84cc16",color:"#16a34a",fontWeight:800,fontSize:14,textDecoration:"none"}}>📧 メールとパスワードだけで簡単登録</Link>
       </div>
     </div>
   );
