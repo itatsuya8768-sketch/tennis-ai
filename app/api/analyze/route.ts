@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     // 利用回数の制限（無料: 累計3回 / Premium: 月30回）
     const FREE_LIMIT = 3;
     const PREMIUM_MONTHLY_LIMIT = 30;
+    // 無制限のデモ/オーナーアカウント（全機能を回数無制限で利用可）
+    const DEMO_EMAILS = ["i.tatsuya8768@gmail.com"];
+    const isUnlimited = !!user.email && DEMO_EMAILS.includes(user.email.toLowerCase());
     let isPremium = false;
     try {
       const { data: prof } = await supabase
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       isPremium = !!prof?.is_premium;
     } catch {}
-    if (!isPremium) {
+    if (!isUnlimited && !isPremium) {
       const { count } = await supabase
         .from("diagnoses")
         .select("*", { count: "exact", head: true })
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest) {
           { status: 402 }
         );
       }
-    } else {
+    } else if (!isUnlimited) {
       // Premium: 月間上限（カレンダー月・UTC基準）
       const now = new Date();
       const monthStart = new Date(
