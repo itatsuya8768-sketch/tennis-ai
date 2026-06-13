@@ -225,8 +225,6 @@ export default function HomePage() {
 
       {isMobile&&<div style={{display:"flex",background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:56,zIndex:100}}>{[{id:"input",label:"📋 入力フォーム"},{id:"result",label:"🤖 診断レポート"}].map(tab=><button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} style={{flex:1,padding:"14px 8px",border:"none",background:"transparent",cursor:"pointer",fontWeight:activeTab===tab.id?800:500,fontSize:13,color:activeTab===tab.id?"#16a34a":"#64748b",borderBottom:activeTab===tab.id?"3px solid #84cc16":"3px solid transparent"}}>{tab.label}</button>)}</div>}
 
-        <div style={{textAlign:"center",padding:"10px 16px 0"}}><Link href="/terms" style={{fontSize:11,color:"#94a3b8",textDecoration:"underline"}}>利用規約・プライバシーポリシー</Link></div>
-
       <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"16px 12px":"24px 20px",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 1fr",gap:24,width:"100%",boxSizing:"border-box"}}>
 
         {showLeft&&<div style={{minWidth:0}}>
@@ -378,6 +376,9 @@ export default function HomePage() {
           </div>}
         </div>}
       </div>
+      <footer style={{maxWidth:1200,margin:"0 auto",padding:"4px 20px 16px",textAlign:"right"}}>
+        <Link href="/terms" style={{fontSize:11,color:"#cbd5e1",textDecoration:"none"}}>利用規約・プライバシーポリシー</Link>
+      </footer>
     </div>
   );
 }
