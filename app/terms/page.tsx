@@ -26,16 +26,12 @@ export default function TermsPage() {
           <p style={{ ...p, marginBottom: 0 }}><strong>3. 撮影時の注意。</strong> 動画を撮影する際は、<strong>周りの人や物に十分配慮し、安全に配慮して行ってください</strong>。ラケットの振りやボールによる事故、転倒、衝突などにご注意ください。撮影・プレーは安全な場所で、周囲の安全を確認した上で行ってください。</p>
         </div>
 
-        {/* 運営者情報 */}
-        <div style={card}>
-          <h2 style={h2}>運営者情報</h2>
-          <p style={p}>運営者氏名：<strong>石川 達也</strong></p>
-          <p style={{ ...p, marginBottom: 0 }}>お問い合わせ：<Link href="/contact" style={{ color: "#16a34a", fontWeight: 800 }}>お問い合わせフォーム</Link> よりご連絡ください。</p>
-        </div>
-
         {/* 利用規約 */}
         <div style={card}>
-          <h2 style={h2}>利用規約</h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 style={{ ...h2, margin: 0 }}>利用規約</h2>
+            <Link href="/contact" style={{ fontSize: 12, color: "#16a34a", fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>✉️ お問い合わせ</Link>
+          </div>
 
           <h3 style={h3}>第1条（適用）</h3>
           <p style={p}>本規約は、本サービス「TennisAI」（以下「本サービス」）の提供条件および本サービスの運営者（以下「運営者」）と利用者との間の権利義務関係を定めるものです。利用者は、本サービスを利用することで本規約に同意したものとみなされます。</p>
@@ -90,6 +86,12 @@ export default function TermsPage() {
 
           <h3 style={h3}>5. お問い合わせ</h3>
           <p style={{ ...p, marginBottom: 0 }}>個人情報の開示・訂正・削除のご希望、その他お問い合わせは <Link href="/contact" style={{ color: "#16a34a", fontWeight: 800 }}>お問い合わせフォーム</Link> よりご連絡ください。</p>
+        </div>
+
+        {/* 運営者情報（最下部） */}
+        <div style={card}>
+          <h2 style={h2}>運営者情報</h2>
+          <p style={{ ...p, marginBottom: 0 }}>運営者氏名：<strong>石川 達也</strong></p>
         </div>
 
         <div style={{ textAlign: "center", padding: "8px 0 24px" }}>

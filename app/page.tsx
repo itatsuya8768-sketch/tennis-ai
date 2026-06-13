@@ -377,7 +377,12 @@ export default function HomePage() {
         </div>}
       </div>
       <footer style={{maxWidth:1200,margin:"0 auto",padding:"4px 20px 16px",textAlign:"right"}}>
-        <Link href="/terms" style={{fontSize:11,color:"#cbd5e1",textDecoration:"none"}}>利用規約・プライバシーポリシー</Link>
+        <div style={{fontSize:11,color:"#cbd5e1"}}>
+          <Link href="/terms" style={{color:"#cbd5e1",textDecoration:"none"}}>利用規約・プライバシーポリシー</Link>
+          <span style={{margin:"0 8px"}}>｜</span>
+          <Link href="/contact" style={{color:"#cbd5e1",textDecoration:"none"}}>お問い合わせ</Link>
+        </div>
+        <div style={{fontSize:11,color:"#cbd5e1",marginTop:4}}>運営者：石川 達也</div>
       </footer>
     </div>
   );
