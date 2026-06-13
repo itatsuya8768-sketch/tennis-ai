@@ -6,6 +6,7 @@ import PoseDetector, { type PoseDetectorHandle, type PoseMetrics } from "@/compo
 import ScoreBar from "@/components/ScoreBar";
 import ReportCard from "@/components/ReportCard";
 import type { PlayerProfile, AIReport } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 
 const PAIN_AREAS = ["右肩","左肩","右肘（テニス肘）","左肘","右手首","左手首","腰（腰痛）","右膝","左膝","右足首","左足首"];
 const PAIN_LEVEL_LABELS = ["","軽い違和感","やや痛む","かなり痛む","激しい痛み"];
@@ -124,7 +125,18 @@ export default function HomePage() {
   const [report,setReport]=useState<AIReport|null>(null);
   const [errMsg,setErrMsg]=useState("");
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
+  const [isPremium,setIsPremium]=useState(false);
   const hasPain=painAreas.length>0;
+
+  // ログイン中ユーザーのPremium状態を取得（会員なら詳細レポート全文を解放）
+  useEffect(()=>{
+    const supabase=createClient();
+    supabase.auth.getUser().then(({data})=>{
+      const u=data.user;
+      if(!u){setIsPremium(false);return;}
+      supabase.from("profiles").select("is_premium").eq("id",u.id).maybeSingle().then(({data:p})=>setIsPremium(!!p?.is_premium));
+    });
+  },[]);
 
   // 決済から戻ってきたら Premium 状態を同期（Webhookの保険）
   useEffect(()=>{
@@ -333,23 +345,36 @@ export default function HomePage() {
               {painAreas.map(a=><span key={a} style={{fontSize:11,padding:"4px 10px",borderRadius:99,background:"#fee2e2",color:"#991b1b",fontWeight:700}}>🔴 {a}：{PAIN_LEVEL_LABELS[painLevels[a]??2]}</span>)}
             </div>
 
-                        {/* 詳細診断レポート：冒頭1/3無料＋続きはPremium */}
+            {/* 詳細診断レポート：Premiumは全文＋全セクション、無料は冒頭＋CTA */}
             <div style={{background:"#fff",border:"2px solid #84cc16",borderRadius:20,padding:"20px 18px",marginBottom:12}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                 <div style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>📋 詳細診断レポート</div>
-                <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700}}>続きはPremium</span>
+                {isPremium
+                  ? <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:700}}>✓ Premium</span>
+                  : <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700}}>続きはPremium</span>}
               </div>
-              <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:14,whiteSpace:"pre-wrap",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
-                {report.sections.formAnalysis}
-              </div>
+              {isPremium ? (
+                [{t:"🎾 フォーム分析",x:report.sections.formAnalysis},{t:"🎯 打点チェック",x:report.sections.impactCheck},{t:"👟 フットワーク",x:report.sections.footwork},{t:"🩹 怪我ケア・予防",x:report.sections.injuryCare}]
+                  .filter(s=>s.x&&s.x.trim())
+                  .map(s=>(
+                    <div key={s.t} style={{marginBottom:14}}>
+                      <div style={{fontWeight:800,fontSize:13,color:"#16a34a",marginBottom:6}}>{s.t}</div>
+                      <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{s.x}</div>
+                    </div>
+                  ))
+              ) : (<>
+                <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:14,whiteSpace:"pre-wrap",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+                  {report.sections.formAnalysis}
+                </div>
+                <button onClick={goPremium} style={{width:"100%",padding:"14px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(132,204,22,0.4)"}}>🔒 Premiumで全文＋打点・フットワーク・怪我ケアを見る</button>
+              </>)}
             </div>
-            {/* Premium CTA */}
-            <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
+            {/* Premium CTA（無料会員のみ表示） */}
+            {!isPremium && <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
               <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🔑 プレミアムプランで<br/><span style={{color:"#84cc16"}}>完全AI診断</span>を解放する</div>
-              <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 詳細フォーム解析アドバイス","✅ 打点・フットワーク改善提案","✅ 怪我に合わせた代替フォーム提案","✅ 週次スコア推移グラフ","✅ プロ選手との詳細比較"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 詳細フォーム解析アドバイス","✅ 打点・フットワーク改善提案","✅ 怪我に合わせた代替フォーム提案","✅ プロ選手との詳細比較"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
               <button onClick={goPremium} style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(132,204,22,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
-              
-            </div>
+            </div>}
           </div>}
         </div>}
       </div>
