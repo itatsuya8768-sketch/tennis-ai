@@ -126,6 +126,7 @@ export default function HomePage() {
   const [errMsg,setErrMsg]=useState("");
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
   const [isPremium,setIsPremium]=useState(false);
+  const [usage,setUsage]=useState<{plan:string;remaining:number|null;limit:number|null}|null>(null);
   const hasPain=painAreas.length>0;
 
   // ログイン中ユーザーのPremium状態を取得（会員なら詳細レポート全文を解放）
@@ -137,6 +138,9 @@ export default function HomePage() {
       supabase.from("profiles").select("is_premium").eq("id",u.id).maybeSingle().then(({data:p})=>setIsPremium(!!p?.is_premium));
     });
   },[]);
+
+  const fetchUsage=()=>{fetch("/api/usage").then(r=>r.json()).then(d=>{if(!d.error)setUsage(d);}).catch(()=>{});};
+  useEffect(()=>{fetchUsage();},[]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 決済から戻ってきたら Premium 状態を同期（Webhookの保険）
   useEffect(()=>{
@@ -197,7 +201,7 @@ export default function HomePage() {
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,frames,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
-      const d=await res.json();setReport(d.report);setStatus("done");
+      const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
   };
 
@@ -220,6 +224,8 @@ export default function HomePage() {
       </header>
 
       {isMobile&&<div style={{display:"flex",background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:56,zIndex:100}}>{[{id:"input",label:"📋 入力フォーム"},{id:"result",label:"🤖 診断レポート"}].map(tab=><button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} style={{flex:1,padding:"14px 8px",border:"none",background:"transparent",cursor:"pointer",fontWeight:activeTab===tab.id?800:500,fontSize:13,color:activeTab===tab.id?"#16a34a":"#64748b",borderBottom:activeTab===tab.id?"3px solid #84cc16":"3px solid transparent"}}>{tab.label}</button>)}</div>}
+
+        <div style={{textAlign:"center",padding:"10px 16px 0"}}><Link href="/terms" style={{fontSize:11,color:"#94a3b8",textDecoration:"underline"}}>利用規約・プライバシーポリシー</Link></div>
 
       <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"16px 12px":"24px 20px",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 1fr",gap:24,width:"100%",boxSizing:"border-box"}}>
 
@@ -296,6 +302,7 @@ export default function HomePage() {
             <button onClick={handleStart} disabled={status==="loading"} style={{width:"100%",padding:"17px",borderRadius:14,background:status==="loading"?"#e2e8f0":"linear-gradient(90deg,#84cc16,#22c55e)",color:status==="loading"?"#94a3b8":"#fff",fontWeight:900,fontSize:16,border:"none",cursor:status==="loading"?"not-allowed":"pointer",boxShadow:status==="loading"?"none":"0 4px 20px rgba(132,204,22,0.4)",letterSpacing:"0.03em"}}>
               {status==="loading"?"⏳ AI解析中...":"🤖 AI精密診断を開始する"}
             </button>
+            {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#16a34a":(usage.remaining===0?"#ef4444":"#475569")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:`無料診断 残り ${usage.remaining} 回です（全${usage.limit}回）`}</div>}
           </SectionCard>
         </div>}
 
