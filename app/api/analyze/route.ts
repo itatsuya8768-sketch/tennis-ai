@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
     const frames: string[] = Array.isArray(body.frames)
       ? body.frames.filter((f: unknown) => typeof f === "string" && f.length > 100)
       : [];
+    const grips: { label: string; data: string }[] = Array.isArray(body.grips)
+      ? body.grips.filter((g: any) => g && typeof g.data === "string" && g.data.length > 100)
+      : [];
 
     const hasPain = profile.painAreas.length > 0;
 
@@ -107,6 +110,10 @@ export async function POST(req: NextRequest) {
       ? `\n【診断対象ショット】\n✅ ${shotCategory}（${shotType ?? "球種未選択"}）\nこのショットに特化して診断してください。例：フォアハンドストロークのトップスピンなら体幹回転・打点前方・フォロースルー完成度を重点評価。ボレーなら面の安定・足の踏み込み・コンパクトなスイングを重点評価。サーブならトス・トロフィーポジション・プロネーションを重点評価。\n`
       : "\n【診断対象ショット】⚠️ 未選択（動画から判断してください）\n";
 
+    const gripSection = grips.length > 0
+      ? `\n【グリップ写真】\nグリップ（握り方）の写真が添付されています（${grips.map((g) => g.label).join("、")}）。写真から握り方（イースタン／セミウエスタン／ウエスタン／コンチネンタル等）を推定し、診断対象ショットに適したグリップかどうかを評価に反映してください。\n`
+      : "";
+
     const compareInstruction = comparePlayer
       ? `各診断項目の末尾に「📊 ${comparePlayer}との比較：違い・取り入れるべき点・習得難易度(易/中/難)」を1〜2文で追加。`
       : "";
@@ -123,6 +130,7 @@ export async function POST(req: NextRequest) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${poseDesc}
 ${shotSection}
+${gripSection}
 ${compareSection}
 
 【絶対に守るルール】
@@ -172,24 +180,21 @@ ${compareInstruction}
   }
 }`;
 
-    let messageContent: Anthropic.MessageParam["content"];
-    if (frames.length > 0) {
-      messageContent = [
-        ...frames.slice(0, 12).map((frame) => ({
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: "image/jpeg" as const,
-            data: frame,
-          },
-        })),
-        { type: "text" as const, text: textPrompt },
-      ];
-    } else {
-      messageContent = textPrompt;
+    const contentParts: any[] = frames.slice(0, 12).map((frame) => ({
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: frame },
+    }));
+    if (grips.length > 0) {
+      contentParts.push({ type: "text", text: `以下はグリップ（握り方）の写真です。順番に：${grips.map((g) => g.label).join("、")}` });
+      for (const g of grips.slice(0, 7)) {
+        contentParts.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: g.data } });
+      }
     }
+    contentParts.push({ type: "text", text: textPrompt });
 
-    const model = frames.length > 0 ? "claude-opus-4-5" : "claude-haiku-4-5-20251001";
+    const hasImages = frames.length > 0 || grips.length > 0;
+    const messageContent: Anthropic.MessageParam["content"] = hasImages ? contentParts : textPrompt;
+    const model = hasImages ? "claude-opus-4-5" : "claude-haiku-4-5-20251001";
 
     const message = await anthropic.messages.create({
       model,

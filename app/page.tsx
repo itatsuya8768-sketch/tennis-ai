@@ -39,10 +39,22 @@ function FieldLabel({children}:{children:React.ReactNode}) {
   return <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginBottom:8}}>{children}</div>;
 }
 
-function GripUploader({label}:{label:string}) {
-  const [preview,setPreview]=useState<string|null>(null);
+function GripUploader({label,value,onChange}:{label:string;value:string|null;onChange:(v:string)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
-  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div onClick={()=>ref.current?.click()} style={{width:64,height:64,borderRadius:12,border:preview?"2px solid #84cc16":"2px dashed #cbd5e1",background:preview?"transparent":"#f8fafc",cursor:"pointer",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center"}}>{preview?<img src={preview} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:20}}>📷</span>}</div><input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)setPreview(URL.createObjectURL(f));}}/><span style={{fontSize:10,color:"#64748b",fontWeight:700,textAlign:"center"}}>{label}</span></div>;
+  const handle=(f:File)=>{
+    const url=URL.createObjectURL(f);
+    const img=new window.Image();
+    img.onload=()=>{
+      const max=512;let w=img.width,h=img.height;
+      if(w>h){if(w>max){h=Math.round(h*max/w);w=max;}}else{if(h>max){w=Math.round(w*max/h);h=max;}}
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      const ctx=c.getContext("2d");if(ctx)ctx.drawImage(img,0,0,w,h);
+      onChange(c.toDataURL("image/jpeg",0.8));
+      URL.revokeObjectURL(url);
+    };
+    img.src=url;
+  };
+  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div onClick={()=>ref.current?.click()} style={{width:64,height:64,borderRadius:12,border:value?"2px solid #84cc16":"2px dashed #cbd5e1",background:value?"transparent":"#f8fafc",cursor:"pointer",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center"}}>{value?<img src={value} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:20}}>📷</span>}</div><input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handle(f);}}/><span style={{fontSize:10,color:"#64748b",fontWeight:700,textAlign:"center"}}>{label}</span></div>;
 }
 
 function LoadingOverlay({hasFrames}:{hasFrames:boolean}) {
@@ -113,6 +125,7 @@ export default function HomePage() {
   const [hasFrames,setHasFrames]=useState(false);
   const [videoDuration,setVideoDuration]=useState<number|null>(null);
   const [videoErr,setVideoErr]=useState(false);
+  const [gripPhotos,setGripPhotos]=useState<Record<string,string>>({});
   const [comparePlayer,setComparePlayer]=useState<string|null>(null);
   const [shotCategory,setShotCategory]=useState<string|null>(null);
   const [shotType,setShotType]=useState<string|null>(null);
@@ -199,7 +212,8 @@ export default function HomePage() {
     if(videoRef.current){videoRef.current.currentTime=0;setPoseActive(true);await new Promise(r=>setTimeout(r,2500));metrics=poseRef.current?.getLatestMetrics()??null;setPoseActive(false);setPoseMetrics(metrics);}
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,frames,comparePlayer,shotCategory,shotType})});
+      const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,frames,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
@@ -243,7 +257,7 @@ export default function HomePage() {
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14,gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:28,height:28,borderRadius:8,flexShrink:0,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>2</div><span style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>STEP 2：グリップ写真</span></div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>{GRIP_SLOTS.map(s=><GripUploader key={s.key} label={s.label}/>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>{GRIP_SLOTS.map(s=><GripUploader key={s.key} label={s.label} value={gripPhotos[s.key]??null} onChange={v=>setGripPhotos(p=>({...p,[s.key]:v}))}/>)}</div>
             <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#1d4ed8",fontWeight:500}}>
               📷 グリップ写真があるとより精度が上がります
             </div>
