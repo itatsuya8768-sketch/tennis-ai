@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     console.error("checkout error:", e);
     return NextResponse.json(
-      { error: `決済の開始に失敗しました: ${e?.message ?? e}` },
+      { error: "決済の開始に失敗しました。時間をおいて再度お試しください。" },
       { status: 500 }
     );
   }
