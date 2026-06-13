@@ -28,10 +28,7 @@ export default function TermsPage() {
 
         {/* 利用規約 */}
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <h2 style={{ ...h2, margin: 0 }}>利用規約</h2>
-            <Link href="/contact" style={{ fontSize: 12, color: "#16a34a", fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>✉️ お問い合わせ</Link>
-          </div>
+          <h2 style={h2}>利用規約</h2>
 
           <h3 style={h3}>第1条（適用）</h3>
           <p style={p}>本規約は、本サービス「TennisAI」（以下「本サービス」）の提供条件および本サービスの運営者（以下「運営者」）と利用者との間の権利義務関係を定めるものです。利用者は、本サービスを利用することで本規約に同意したものとみなされます。</p>
