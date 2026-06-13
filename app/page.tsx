@@ -242,12 +242,10 @@ export default function HomePage() {
           <SectionCard>
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14,gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:28,height:28,borderRadius:8,flexShrink:0,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>2</div><span style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>STEP 2：グリップ写真</span></div>
-              <span style={{fontSize:10,padding:"3px 8px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700,flexShrink:0}}>🔑 AI自動判定</span>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>{GRIP_SLOTS.map(s=><GripUploader key={s.key} label={s.label}/>)}</div>
-            <div style={{background:"#fef9c3",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#78350f",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-              <span>🔑 グリップ自動判定はPremiumで利用可能</span>
-              <button style={{padding:"4px 12px",borderRadius:99,background:"#f59e0b",color:"#fff",fontWeight:700,border:"none",cursor:"pointer",fontSize:11,flexShrink:0}}>登録 →</button>
+            <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#1d4ed8",fontWeight:500}}>
+              📷 グリップ写真があるとより精度が上がります
             </div>
           </SectionCard>
 
