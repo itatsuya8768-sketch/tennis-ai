@@ -30,6 +30,16 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     let customerId: string | undefined = prof?.stripe_customer_id ?? undefined;
+    if (customerId) {
+      // 保存済みの顧客IDが現在のモード/アカウントに存在するか確認
+      // （テスト→本番の切替などで無効になることがある → 無効なら作り直す）
+      try {
+        const existing = await stripe.customers.retrieve(customerId);
+        if ((existing as any).deleted) customerId = undefined;
+      } catch {
+        customerId = undefined;
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
