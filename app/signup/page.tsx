@@ -55,6 +55,9 @@ export default function SignupPage() {
         <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748b"}}>
           すでにアカウントをお持ちの方は <Link href="/login" style={{color:"#16a34a",fontWeight:700,textDecoration:"none"}}>ログイン</Link>
         </div>
+        <div style={{textAlign:"center",marginTop:12,fontSize:11,color:"#94a3b8",lineHeight:1.6}}>
+          登録・利用により <Link href="/terms" style={{color:"#16a34a",fontWeight:700,textDecoration:"underline"}}>利用規約・プライバシーポリシー</Link> に同意したものとみなされます
+        </div>
       </div>
     </div>
   );

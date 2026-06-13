@@ -201,14 +201,7 @@ export default function HomePage() {
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
   };
 
-  const goPremium=async()=>{
-    try{
-      const res=await fetch("/api/checkout",{method:"POST"});
-      const d=await res.json();
-      if(d.url){window.location.href=d.url;}
-      else{alert(d.error??"決済の開始に失敗しました");}
-    }catch{alert("決済の開始に失敗しました");}
-  };
+  const goPremium=()=>{window.location.href="/premium";};
 
   const showLeft=!isMobile||activeTab==="input";
   const showRight=!isMobile||activeTab==="result";

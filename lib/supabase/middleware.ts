@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
 
   // 未ログインユーザーを /login にリダイレクト（診断ページ・履歴は要ログイン）
   const path = request.nextUrl.pathname;
-  const isProtected = path === "/" || path.startsWith("/history");
+  const isProtected = path === "/" || path.startsWith("/history") || path.startsWith("/premium");
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
