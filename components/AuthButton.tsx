@@ -76,7 +76,7 @@ export default function AuthButton() {
           color: "#fff", fontSize: 12, fontWeight: 800,
           cursor: loadingCheckout ? "wait" : "pointer",
           boxShadow: "0 2px 10px rgba(245,158,11,0.35)",
-        }}>{loadingCheckout ? "..." : "⭐ 有料登録"}</button>
+        }}>{loadingCheckout ? "..." : "⭐ Premium"}</button>
       )}
       <button onClick={signOut} style={{
         padding: "7px 14px", borderRadius: 8, border: "1px solid #e2e8f0",

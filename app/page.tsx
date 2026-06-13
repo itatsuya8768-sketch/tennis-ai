@@ -137,6 +137,27 @@ export default function HomePage() {
     }
   },[]);
 
+  // 入力内容をブラウザに保存し、次回（ログイン後も）自動で復元する
+  useEffect(()=>{
+    try{
+      const s=JSON.parse(localStorage.getItem("tennisai_inputs")||"{}");
+      if(s.handedness)setHandedness(s.handedness);
+      if(s.forehand)setForehand(s.forehand);
+      if(s.forehandGrip)setForehandGrip(s.forehandGrip);
+      if(s.backhand)setBackhand(s.backhand);
+      if(Array.isArray(s.painAreas))setPainAreas(s.painAreas);
+      if(s.painLevels&&typeof s.painLevels==="object")setPainLevels(s.painLevels);
+      if("comparePlayer" in s)setComparePlayer(s.comparePlayer);
+      if("shotCategory" in s)setShotCategory(s.shotCategory);
+      if("shotType" in s)setShotType(s.shotType);
+    }catch{}
+  },[]);
+  useEffect(()=>{
+    try{
+      localStorage.setItem("tennisai_inputs",JSON.stringify({handedness,forehand,forehandGrip,backhand,painAreas,painLevels,comparePlayer,shotCategory,shotType}));
+    }catch{}
+  },[handedness,forehand,forehandGrip,backhand,painAreas,painLevels,comparePlayer,shotCategory,shotType]);
+
   const togglePain=(area:string)=>{setPainAreas(prev=>{if(prev.includes(area)){setPainLevels(lv=>{const n={...lv};delete n[area];return n;});return prev.filter(a=>a!==area);}setPainLevels(lv=>({...lv,[area]:2}));return [...prev,area];});};
 
   const handleDrop=useCallback((e:React.DragEvent|React.ChangeEvent<HTMLInputElement>)=>{
