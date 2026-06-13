@@ -263,17 +263,22 @@ ${compareInstruction}
       shotType,
     };
 
-    await supabase.from("diagnoses").insert({
-      user_id:       user.id,
-      handedness:    profile.handedness,
-      forehand:      profile.forehand,
-      forehand_grip: profile.forehandGrip ?? null,
-      backhand:      profile.backhand,
-      pain_areas:    profile.painAreas,
-      pain_levels:   profile.painLevels,
-      ai_report:     report,
-      ai_text:       Object.values(sections).join("\n\n"),
-    });
+    // 動画が正しく読み込め（フレームあり）、かつAIが内容を返した場合のみ記録する＝回数にカウントする。
+    // 動画を読み込めない・エラー・空の結果のときはカウントしない。
+    const countable = frames.length > 0 && !!sections.formAnalysis && sections.formAnalysis.trim().length > 0;
+    if (countable) {
+      await supabase.from("diagnoses").insert({
+        user_id:       user.id,
+        handedness:    profile.handedness,
+        forehand:      profile.forehand,
+        forehand_grip: profile.forehandGrip ?? null,
+        backhand:      profile.backhand,
+        pain_areas:    profile.painAreas,
+        pain_levels:   profile.painLevels,
+        ai_report:     report,
+        ai_text:       Object.values(sections).join("\n\n"),
+      });
+    }
 
     return NextResponse.json({ report });
 
