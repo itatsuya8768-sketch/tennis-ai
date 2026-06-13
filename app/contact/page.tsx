@@ -4,7 +4,7 @@ import Link from "next/link";
 
 // Web3Forms のアクセスキー（無料・https://web3forms.com で作成）
 // ※ このキーはクライアントに出ても安全な「公開キー」です。メールアドレス本体はキーに紐づくため公開されません。
-const WEB3FORMS_KEY = process.env.NEXT_PUBLIC_WEB3FORMS_KEY || "";
+const WEB3FORMS_KEY = process.env.NEXT_PUBLIC_WEB3FORMS_KEY || "ee32380e-e6d2-4c19-92d6-13f70d425091";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
