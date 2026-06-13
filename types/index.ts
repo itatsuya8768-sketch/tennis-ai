@@ -5,6 +5,8 @@ export interface PlayerProfile {
   forehand: "片手打ち" | "両手打ち";
   forehandGrip?: "順手（利き手が上）" | "逆手（非利き手が上）";
   backhand: "片手打ち" | "両手打ち";
+  foreVolley?: "片手打ち" | "両手打ち";
+  backVolley?: "片手打ち" | "両手打ち";
   painAreas: string[];
   painLevels: Record<string, PainLevel>;
 }

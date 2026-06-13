@@ -124,8 +124,10 @@ export async function POST(req: NextRequest) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 【最重要：プレイヤーの確定情報】
 ✅ 利き手：${profile.handedness}（確定・変更不可）
-✅ フォアハンド：${profile.forehand}${profile.forehandGrip ? `（${profile.forehandGrip}）` : ""}（確定・変更不可）
-✅ バックハンド：${profile.backhand}（確定・変更不可）
+✅ フォアハンドストローク：${profile.forehand}${profile.forehandGrip ? `（${profile.forehandGrip}）` : ""}（確定・変更不可）
+✅ バックハンドストローク：${profile.backhand}（確定・変更不可）
+✅ フォアハンドボレー：${profile.foreVolley ?? "未設定"}（確定・変更不可）
+✅ バックハンドボレー：${profile.backVolley ?? "未設定"}（確定・変更不可）
 ✅ 現在の痛み：${painDesc}（確定・変更不可）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${poseDesc}

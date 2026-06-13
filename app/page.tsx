@@ -118,6 +118,8 @@ export default function HomePage() {
   const [forehand,setForehand]=useState<PlayerProfile["forehand"]>("片手打ち");
   const [forehandGrip,setForehandGrip]=useState<NonNullable<PlayerProfile["forehandGrip"]>>("順手（利き手が上）");
   const [backhand,setBackhand]=useState<PlayerProfile["backhand"]>("両手打ち");
+  const [foreVolley,setForeVolley]=useState<"片手打ち"|"両手打ち">("片手打ち");
+  const [backVolley,setBackVolley]=useState<"片手打ち"|"両手打ち">("片手打ち");
   const [painAreas,setPainAreas]=useState<string[]>([]);
   const [painLevels,setPainLevels]=useState<Record<string,number>>({});
   const [videoFile,setVideoFile]=useState<File|null>(null);
@@ -174,6 +176,8 @@ export default function HomePage() {
       if(s.forehand)setForehand(s.forehand);
       if(s.forehandGrip)setForehandGrip(s.forehandGrip);
       if(s.backhand)setBackhand(s.backhand);
+      if(s.foreVolley)setForeVolley(s.foreVolley);
+      if(s.backVolley)setBackVolley(s.backVolley);
       if(Array.isArray(s.painAreas))setPainAreas(s.painAreas);
       if(s.painLevels&&typeof s.painLevels==="object")setPainLevels(s.painLevels);
       if("comparePlayer" in s)setComparePlayer(s.comparePlayer);
@@ -183,9 +187,9 @@ export default function HomePage() {
   },[]);
   useEffect(()=>{
     try{
-      localStorage.setItem("tennisai_inputs",JSON.stringify({handedness,forehand,forehandGrip,backhand,painAreas,painLevels,comparePlayer,shotCategory,shotType}));
+      localStorage.setItem("tennisai_inputs",JSON.stringify({handedness,forehand,forehandGrip,backhand,foreVolley,backVolley,painAreas,painLevels,comparePlayer,shotCategory,shotType}));
     }catch{}
-  },[handedness,forehand,forehandGrip,backhand,painAreas,painLevels,comparePlayer,shotCategory,shotType]);
+  },[handedness,forehand,forehandGrip,backhand,foreVolley,backVolley,painAreas,painLevels,comparePlayer,shotCategory,shotType]);
 
   const togglePain=(area:string)=>{setPainAreas(prev=>{if(prev.includes(area)){setPainLevels(lv=>{const n={...lv};delete n[area];return n;});return prev.filter(a=>a!==area);}setPainLevels(lv=>({...lv,[area]:2}));return [...prev,area];});};
 
@@ -211,7 +215,7 @@ export default function HomePage() {
     if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
     if(videoRef.current){videoRef.current.currentTime=0;setPoseActive(true);await new Promise(r=>setTimeout(r,2500));metrics=poseRef.current?.getLatestMetrics()??null;setPoseActive(false);setPoseMetrics(metrics);}
     try{
-      const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
+      const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,frames,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
@@ -247,8 +251,10 @@ export default function HomePage() {
             <StepLabel number={1} title="基本スタイル"/>
             <div style={{display:"flex",flexDirection:"column",gap:16}}>
               <div><FieldLabel>利き手</FieldLabel><ToggleGroup options={["右利き","左利き"]} value={handedness} onChange={v=>setHandedness(v as any)}/></div>
-              <div><FieldLabel>フォアハンド</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={forehand} onChange={v=>setForehand(v as any)}/>{forehand==="両手打ち"&&<div style={{marginTop:10,padding:"12px 14px",borderRadius:12,background:"#f0fdf4",border:"1px solid #bbf7d0"}}><div style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:8}}>↳ 両手フォアの握り方</div><ToggleGroup options={["順手（利き手が上）","逆手（非利き手が上）"]} value={forehandGrip} onChange={v=>setForehandGrip(v as any)}/></div>}</div>
-              <div><FieldLabel>バックハンド</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={backhand} onChange={v=>setBackhand(v as any)}/></div>
+              <div><FieldLabel>フォアハンドストローク</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={forehand} onChange={v=>setForehand(v as any)}/>{forehand==="両手打ち"&&<div style={{marginTop:10,padding:"12px 14px",borderRadius:12,background:"#f0fdf4",border:"1px solid #bbf7d0"}}><div style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:8}}>↳ 両手フォアの握り方</div><ToggleGroup options={["順手（利き手が上）","逆手（非利き手が上）"]} value={forehandGrip} onChange={v=>setForehandGrip(v as any)}/></div>}</div>
+              <div><FieldLabel>バックハンドストローク</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={backhand} onChange={v=>setBackhand(v as any)}/></div>
+              <div><FieldLabel>フォアハンドボレー</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={foreVolley} onChange={v=>setForeVolley(v as any)}/></div>
+              <div><FieldLabel>バックハンドボレー</FieldLabel><ToggleGroup options={["片手打ち","両手打ち"]} value={backVolley} onChange={v=>setBackVolley(v as any)}/></div>
             </div>
           </SectionCard>
 
