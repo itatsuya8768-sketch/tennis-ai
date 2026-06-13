@@ -382,7 +382,6 @@ export default function HomePage() {
           <span style={{margin:"0 8px"}}>｜</span>
           <Link href="/contact" style={{color:"#cbd5e1",textDecoration:"none"}}>お問い合わせ</Link>
         </div>
-        <div style={{fontSize:11,color:"#cbd5e1",marginTop:4}}>運営者：石川 達也</div>
       </footer>
     </div>
   );

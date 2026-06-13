@@ -88,7 +88,7 @@ export default function TermsPage() {
         {/* 運営者情報（最下部） */}
         <div style={card}>
           <h2 style={h2}>運営者情報</h2>
-          <p style={{ ...p, marginBottom: 0 }}>運営者氏名：<strong>石川 達也</strong></p>
+          <p style={{ ...p, marginBottom: 0 }}>運営者：<strong>Tennis ONE STEP</strong></p>
         </div>
 
         <div style={{ textAlign: "center", padding: "8px 0 24px" }}>
