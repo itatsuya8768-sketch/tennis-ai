@@ -439,8 +439,10 @@ ${proKnowledge}
 
     return NextResponse.json({ report });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("Analyze error:", err);
-    return NextResponse.json({ error: "診断中にエラーが発生しました" }, { status: 500 });
+    // 原因切り分けのため、一時的に実際のエラー内容を返す（解決後に汎用文言へ戻す）
+    const detail = err?.message ?? String(err);
+    return NextResponse.json({ error: "診断エラー詳細: " + detail }, { status: 500 });
   }
 }
