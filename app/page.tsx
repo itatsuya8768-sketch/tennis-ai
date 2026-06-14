@@ -109,9 +109,11 @@ function analyzeFollowThrough(series: PoseFrame[], handedness: string): FollowTh
   for (const g of win){ if (g.wy < hi.wy) hi = g; }
   const forearm = Math.hypot(hi.wx-hi.ex, hi.wy-hi.ey) || 1;
   const aboveRatio = (hi.ey - hi.wy) / forearm; // 画面yは下向き正なので、手首が肘より上だと正
+  // スムーズに振り抜けた良いフォロースルーは手首が肘よりはっきり上（手が肩〜頭の高さ）に来る。
+  // 手首が肘より少し上(〜0.4)止まりは、振りが詰まった「低いフォロースルー」とみなす。
   let verdict: "high"|"low"|"unknown" = "unknown";
-  if (aboveRatio > 0.2) verdict = "high";
-  else if (aboveRatio < -0.1) verdict = "low";
+  if (aboveRatio > 0.9) verdict = "high";
+  else if (aboveRatio < 0.4) verdict = "low";
   return { verdict, aboveRatio:Math.round(aboveRatio*100)/100, frames:valid.length };
 }
 
