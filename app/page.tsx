@@ -30,47 +30,54 @@ function analyzeTakeback(series: PoseFrame[], handedness: string): TakebackAnaly
   const RIGHT = handedness !== "左利き";
   const ELBOW = RIGHT ? 14 : 13;   // 利き腕の肘
   const WRIST = RIGHT ? 16 : 15;   // 利き腕の手首
-  const LSH = 11, RSH = 12;        // 左肩 / 右肩（解剖学的）
 
-  // 有効フレーム（必要な関節が十分見えている）だけ抽出し、推定ラケットヘッドを計算
-  type F = { t:number; headX:number; headY:number; cx:number; halfW:number; lx:number; rx:number };
+  // 有効フレーム（利き腕＋胴体が見えている）を抽出し、推定ラケットヘッドと胴体基準点を計算。
+  // 真横アングルでは左右の肩が重なるため「肩幅」は使えない。
+  // 代わりに「肩→腰の胴体長」をスケールに、ラケットヘッドが肩（胴体ライン）より
+  // 前後方向にどれだけ後ろへ出ているかで判定する。
+  type F = { t:number; headX:number; shX:number; torso:number };
   const valid: F[] = [];
   for (const f of series) {
     const v = f.vis, p = f.pts;
-    if (!p[ELBOW]||!p[WRIST]||!p[LSH]||!p[RSH]) continue;
-    if ((v[ELBOW]??0)<0.4||(v[WRIST]??0)<0.4||(v[LSH]??0)<0.4||(v[RSH]??0)<0.4) continue;
-    const headX = p[WRIST][0] + (p[WRIST][0]-p[ELBOW][0]); // 手首から前腕方向へ1本分延長＝ラケットヘッド推定
-    const headY = p[WRIST][1] + (p[WRIST][1]-p[ELBOW][1]);
-    const cx = (p[LSH][0]+p[RSH][0])/2;
-    const halfW = Math.abs(p[RSH][0]-p[LSH][0])/2;
-    if (halfW < 8) continue; // 肩幅が小さすぎる＝検出不良
-    valid.push({ t:f.t, headX, headY, cx, halfW, lx:p[LSH][0], rx:p[RSH][0] });
+    const shoulders = [11,12].filter(i=>p[i]&&(v[i]??0)>=0.3);
+    const hips      = [23,24].filter(i=>p[i]&&(v[i]??0)>=0.3);
+    if (!p[ELBOW]||!p[WRIST]||(v[ELBOW]??0)<0.4||(v[WRIST]??0)<0.4) continue;
+    if (shoulders.length===0||hips.length===0) continue;
+    const headX = p[WRIST][0] + (p[WRIST][0]-p[ELBOW][0]); // 手首から前腕方向へ延長＝ラケットヘッド推定
+    const shX = shoulders.reduce((s,i)=>s+p[i][0],0)/shoulders.length;
+    const shY = shoulders.reduce((s,i)=>s+p[i][1],0)/shoulders.length;
+    const hipX = hips.reduce((s,i)=>s+p[i][0],0)/hips.length;
+    const hipY = hips.reduce((s,i)=>s+p[i][1],0)/hips.length;
+    const torso = Math.hypot(shX-hipX, shY-hipY);
+    if (torso < 20) continue; // 胴体が小さすぎる＝検出不良
+    valid.push({ t:f.t, headX, shX, torso });
   }
   if (valid.length < 5) return { verdict:"unknown", beyondRatio:0, shoulderLabel:"", frames:valid.length };
 
-  // コンタクト（最高速フレーム）を推定し、それ以前＝テイクバック区間に限定
+  // コンタクト＝ラケットヘッドが最高速のフレーム。前方（ネット方向）の符号を決める。
   let contactIdx = 0, maxSpeed = -1;
   for (let i=1;i<valid.length;i++){
     const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
-    const sp = Math.hypot(valid[i].headX-valid[i-1].headX, valid[i].headY-valid[i-1].headY)/dt;
+    const sp = Math.abs(valid[i].headX-valid[i-1].headX)/dt;
     if (sp>maxSpeed){maxSpeed=sp;contactIdx=i;}
   }
+
+  // テイクバック最深＝（コンタクトまでの区間で）ラケットヘッドが肩から水平に最も離れたフレーム
   const window = contactIdx>=3 ? valid.slice(0, contactIdx+1) : valid;
-
-  // テイクバック最深＝ラケットヘッドが肩中心から水平に最も離れたフレーム
   let deep = window[0];
-  for (const f of window){ if (Math.abs(f.headX-f.cx) > Math.abs(deep.headX-deep.cx)) deep = f; }
+  for (const f of window){ if (Math.abs(f.headX-f.shX) > Math.abs(deep.headX-deep.shX)) deep = f; }
 
-  const dx = deep.headX - deep.cx;                       // 肩中心からの水平オフセット
-  const beyond = Math.abs(dx) - deep.halfW;              // 肩（外側）より更に外へ出た量
-  const beyondRatio = beyond / (deep.halfW*2);           // 肩幅で正規化
-  // ラケットがある側の肩（背中側の肩）を特定
-  const racketSideIsLeft = deep.headX < deep.cx ? deep.lx < deep.rx : deep.lx > deep.rx;
-  const shoulderLabel = racketSideIsLeft ? "左肩" : "右肩";
+  // 前方向（ネット方向）の符号：テイクバック最深→コンタクトへ向かう水平移動の向き
+  const fwd = Math.sign((valid[contactIdx]?.headX ?? deep.shX) - deep.headX) || (deep.headX < deep.shX ? 1 : -1);
+  // ラケットヘッドが肩より「後ろ」へ出ている量（前後方向）を胴体長で正規化
+  const behind = (deep.shX - deep.headX) * fwd;
+  const beyondRatio = behind / deep.torso;
+  // 右利きのバックは身体の左側へ引く＝画面上、前方と反対側。表示用ラベル。
+  const shoulderLabel = RIGHT ? "肩" : "肩";
 
   let verdict: "over"|"compact"|"unknown" = "unknown";
-  if (beyondRatio > 0.3) verdict = "over";
-  else if (beyondRatio < 0.12) verdict = "compact";
+  if (beyondRatio > 0.22) verdict = "over";       // ラケットヘッドが肩より明確に後方
+  else if (beyondRatio < 0.05) verdict = "compact"; // 肩のライン以内に収まる
   return { verdict, beyondRatio:Math.round(beyondRatio*100)/100, shoulderLabel, frames:valid.length };
 }
 
@@ -273,16 +280,25 @@ export default function HomePage() {
     if(videoRef.current){
       const v=videoRef.current;
       try{poseRef.current?.clearSeries?.();}catch{}
-      try{v.muted=true;v.currentTime=0;}catch{}
+      try{v.muted=true;v.loop=true;v.playbackRate=0.85;v.currentTime=0;}catch{}
       setPoseActive(true);
       try{await v.play();}catch{}
-      // スイング全体を再生しながら骨格座標を時系列で記録（最大8秒）
+      // 骨格モデルの読み込みは非同期で、短い動画だと再生が先に終わってしまう。
+      // ループ再生しながら、十分なフレーム数が集まるか上限時間まで待つ。
       const dur=isFinite(v.duration)&&v.duration>0?Math.min(v.duration,8):5;
-      await new Promise(r=>setTimeout(r,Math.round(dur*1000)+400));
-      try{v.pause();}catch{}
+      const oneLoopMs=Math.round((dur/0.85)*1000);
+      const maxWaitMs=Math.min(oneLoopMs*3+1500,14000); // 最大でも約14秒で打ち切り
+      const t0=Date.now();
+      while(Date.now()-t0<maxWaitMs){
+        await new Promise(r=>setTimeout(r,250));
+        const n=(()=>{try{return poseRef.current?.getSeries?.()?.length??0;}catch{return 0;}})();
+        // 1ループ分以上の時間が経過し、かつ十分なフレームが集まったら終了
+        if(Date.now()-t0>oneLoopMs+800 && n>=25) break;
+      }
+      try{v.loop=false;v.playbackRate=1;v.pause();}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);}catch(e){console.warn("takeback analysis error",e);}
+      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);console.log("takeback",takeback,"frames",series.length);}catch(e){console.warn("takeback analysis error",e);}
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
