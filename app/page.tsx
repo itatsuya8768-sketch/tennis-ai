@@ -54,30 +54,19 @@ function analyzeTakeback(series: PoseFrame[], handedness: string): TakebackAnaly
   }
   if (valid.length < 5) return { verdict:"unknown", beyondRatio:0, shoulderLabel:"", frames:valid.length };
 
-  // コンタクト＝ラケットヘッドが最高速のフレーム。前方（ネット方向）の符号を決める。
-  let contactIdx = 0, maxSpeed = -1;
-  for (let i=1;i<valid.length;i++){
-    const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
-    const sp = Math.abs(valid[i].headX-valid[i-1].headX)/dt;
-    if (sp>maxSpeed){maxSpeed=sp;contactIdx=i;}
-  }
+  // スイング中、ラケットヘッドが肩から水平に最も離れたフレーム＝テイクバック最深。
+  // ネット方向（前後の符号）の推定は動画により反転して誤判定の原因になるため使わず、
+  // 「肩からの水平距離の大きさ」を胴体長で正規化した値で判定する（符号に依存しない）。
+  let deep = valid[0];
+  for (const f of valid){ if (Math.abs(f.headX-f.shX) > Math.abs(deep.headX-deep.shX)) deep = f; }
 
-  // テイクバック最深＝（コンタクトまでの区間で）ラケットヘッドが肩から水平に最も離れたフレーム
-  const window = contactIdx>=3 ? valid.slice(0, contactIdx+1) : valid;
-  let deep = window[0];
-  for (const f of window){ if (Math.abs(f.headX-f.shX) > Math.abs(deep.headX-deep.shX)) deep = f; }
-
-  // 前方向（ネット方向）の符号：テイクバック最深→コンタクトへ向かう水平移動の向き
-  const fwd = Math.sign((valid[contactIdx]?.headX ?? deep.shX) - deep.headX) || (deep.headX < deep.shX ? 1 : -1);
-  // ラケットヘッドが肩より「後ろ」へ出ている量（前後方向）を胴体長で正規化
-  const behind = (deep.shX - deep.headX) * fwd;
-  const beyondRatio = behind / deep.torso;
-  // 右利きのバックは身体の左側へ引く＝画面上、前方と反対側。表示用ラベル。
-  const shoulderLabel = RIGHT ? "肩" : "肩";
+  const behind = Math.abs(deep.headX - deep.shX); // 肩からラケットヘッドまでの水平距離
+  const beyondRatio = behind / deep.torso;        // 胴体長で正規化
+  const shoulderLabel = "肩";
 
   let verdict: "over"|"compact"|"unknown" = "unknown";
-  if (beyondRatio > 0.22) verdict = "over";       // ラケットヘッドが肩より明確に後方
-  else if (beyondRatio < 0.05) verdict = "compact"; // 肩のライン以内に収まる
+  if (beyondRatio > 0.55) verdict = "over";         // ラケットヘッドが肩から大きく離れている＝引きすぎ
+  else if (beyondRatio < 0.30) verdict = "compact"; // 肩の近くに収まっている＝コンパクト
   return { verdict, beyondRatio:Math.round(beyondRatio*100)/100, shoulderLabel, frames:valid.length };
 }
 
@@ -200,6 +189,7 @@ export default function HomePage() {
   const poseRef=useRef<PoseDetectorHandle>(null);
   const [poseActive,setPoseActive]=useState(false);
   const [poseMetrics,setPoseMetrics]=useState<PoseMetrics|null>(null);
+  const [poseDebug,setPoseDebug]=useState<string>("");
   const [status,setStatus]=useState<"idle"|"loading"|"done"|"error">("idle");
   const [report,setReport]=useState<AIReport|null>(null);
   const [errMsg,setErrMsg]=useState("");
@@ -291,7 +281,7 @@ export default function HomePage() {
       try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);console.log("[takeback]",takeback,"captured",n,"series",series.length);}catch(e:any){console.warn("takeback analysis error",e);}
+      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);setPoseDebug(`骨格計測: frames=${series.length} / 判定=${takeback.verdict} / ratio=${takeback.beyondRatio} / 解析=${takeback.frames}`);console.log("[takeback]",takeback,"captured",n,"series",series.length);}catch(e:any){setPoseDebug(`骨格計測エラー: ${e?.message??e}`);console.warn("takeback analysis error",e);}
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
@@ -309,6 +299,7 @@ export default function HomePage() {
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#f0fdf4 0%,#f8fafc 50%,#f0f9ff 100%)",fontFamily:"'Noto Sans JP','Hiragino Sans','Helvetica Neue',sans-serif",overflowX:"hidden"}}>
+      {poseDebug&&<div style={{position:"fixed",bottom:8,left:8,zIndex:9999,background:"rgba(15,23,42,0.92)",color:"#bef264",fontSize:11,fontWeight:700,padding:"6px 10px",borderRadius:8,maxWidth:"calc(100vw - 16px)",fontFamily:"monospace"}} onClick={()=>setPoseDebug("")}>🦴 {poseDebug}　(タップで消す)</div>}
       <header style={{background:"rgba(255,255,255,0.92)",WebkitBackdropFilter:"blur(12px)",backdropFilter:"blur(12px)",borderBottom:"1px solid #e2e8f0",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,position:"sticky",top:0,zIndex:200}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎾</div>
