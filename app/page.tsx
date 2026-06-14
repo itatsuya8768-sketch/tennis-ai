@@ -200,7 +200,6 @@ export default function HomePage() {
   const poseRef=useRef<PoseDetectorHandle>(null);
   const [poseActive,setPoseActive]=useState(false);
   const [poseMetrics,setPoseMetrics]=useState<PoseMetrics|null>(null);
-  const [poseDebug,setPoseDebug]=useState<string>("");
   const [status,setStatus]=useState<"idle"|"loading"|"done"|"error">("idle");
   const [report,setReport]=useState<AIReport|null>(null);
   const [errMsg,setErrMsg]=useState("");
@@ -292,7 +291,7 @@ export default function HomePage() {
       try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);setPoseDebug(`骨格計測: frames=${series.length} / 判定=${takeback.verdict} / ratio=${takeback.beyondRatio} / 解析フレーム=${takeback.frames}`);console.log("takeback",takeback,"captured",n,"series",series.length);}catch(e:any){setPoseDebug(`骨格計測エラー: ${e?.message??e}`);console.warn("takeback analysis error",e);}
+      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);console.log("[takeback]",takeback,"captured",n,"series",series.length);}catch(e:any){console.warn("takeback analysis error",e);}
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
@@ -310,7 +309,6 @@ export default function HomePage() {
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#f0fdf4 0%,#f8fafc 50%,#f0f9ff 100%)",fontFamily:"'Noto Sans JP','Hiragino Sans','Helvetica Neue',sans-serif",overflowX:"hidden"}}>
-      {poseDebug&&<div style={{position:"fixed",bottom:8,left:8,zIndex:9999,background:"rgba(15,23,42,0.92)",color:"#bef264",fontSize:11,fontWeight:700,padding:"6px 10px",borderRadius:8,maxWidth:"calc(100vw - 16px)",fontFamily:"monospace"}} onClick={()=>setPoseDebug("")}>🦴 {poseDebug}　(タップで消す)</div>}
       <header style={{background:"rgba(255,255,255,0.92)",WebkitBackdropFilter:"blur(12px)",backdropFilter:"blur(12px)",borderBottom:"1px solid #e2e8f0",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,position:"sticky",top:0,zIndex:200}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎾</div>
