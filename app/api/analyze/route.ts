@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// AI解析（opus＋画像＋長いプロンプト）は時間がかかるため、関数のタイムアウトを延長する。
+// これを設定しないとVercelのデフォルト（短い）でタイムアウトし「診断中にエラー」になる。
+export const maxDuration = 60;
+export const runtime = "nodejs";
+
 const PLAYER_PROFILES: Record<string, string> = {
   "ロジャー・フェデラー": "フォアハンド：セミウエスタン、フラット系、打点は高め・前方、フォロースルーは肩より上。バックハンド：片手打ち。特徴：全身のキネティックチェーンが完璧、骨盤の回転を最大活用。",
   "ノバク・ジョコビッチ": "フォアハンド：セミウエスタン〜ウエスタン、強烈なトップスピン。バックハンド：両手打ち、体幹の回転でパワー。特徴：柔軟性が異常に高く低いボールへの対応が世界一、骨盤を深く沈めてから回転。",
@@ -349,7 +354,8 @@ ${proKnowledge}
       messages: [{ role: "user", content: messageContent }],
     });
 
-    const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+    const firstBlock = message.content?.[0];
+    const rawText = firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
 
     let sections = {
       formAnalysis: "",
