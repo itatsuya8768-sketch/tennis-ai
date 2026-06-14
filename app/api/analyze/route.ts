@@ -441,8 +441,14 @@ ${proKnowledge}
 
   } catch (err: any) {
     console.error("Analyze error:", err);
-    // 原因切り分けのため、一時的に実際のエラー内容を返す（解決後に汎用文言へ戻す）
-    const detail = err?.message ?? String(err);
-    return NextResponse.json({ error: "診断エラー詳細: " + detail }, { status: 500 });
+    const detail = String(err?.message ?? err);
+    // AIのクレジット残高不足は運営者向けに分かりやすく案内する
+    if (/credit balance is too low|Plans & Billing/i.test(detail)) {
+      return NextResponse.json(
+        { error: "ただいまAI診断が一時的に利用できません。しばらくしてから再度お試しください。（運営者の方へ：Anthropicのクレジット残高が不足しています）" },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: "診断中にエラーが発生しました。時間をおいて再度お試しください。" }, { status: 500 });
   }
 }
