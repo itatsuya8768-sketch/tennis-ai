@@ -16,8 +16,16 @@ interface Props {
   active: boolean;
 }
 
+export interface PoseFrame {
+  t:   number;       // video.currentTime
+  pts: number[][];   // landmark pixel coords [x,y,z]
+  vis: number[];     // visibility per landmark
+}
+
 export interface PoseDetectorHandle {
   getLatestMetrics: () => PoseMetrics | null;
+  getSeries: () => PoseFrame[];
+  clearSeries: () => void;
 }
 
 function angleBetween(a: number[], b: number[], c: number[]) {
@@ -35,10 +43,13 @@ const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
     const canvasRef  = useRef<HTMLCanvasElement>(null);
     const poseRef    = useRef<any>(null);
     const latestRef  = useRef<PoseMetrics | null>(null);
+    const seriesRef  = useRef<PoseFrame[]>([]);
     const rafRef     = useRef<number>(0);
 
     useImperativeHandle(ref, () => ({
       getLatestMetrics: () => latestRef.current,
+      getSeries: () => seriesRef.current,
+      clearSeries: () => { seriesRef.current = []; },
     }));
 
     const onResults = useCallback((results: any) => {
@@ -96,6 +107,15 @@ const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
 
       latestRef.current = metrics;
       onMetrics?.(metrics);
+
+      // ── スイング全体の座標を時系列で記録（テイクバック最深フレーム解析用）──
+      if (seriesRef.current.length < 900) {
+        seriesRef.current.push({
+          t:   video.currentTime,
+          pts: pts.map(p => [p[0], p[1], p[2]]),
+          vis: lm.map(p => p.visibility ?? 0),
+        });
+      }
     }, [videoRef, onMetrics]);
 
     useEffect(() => {

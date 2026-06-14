@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const profile = body.profile;
     const poseMetrics = body.poseMetrics ?? null;
+    const takeback = body.takeback ?? null; // 骨格座標から計算した客観的テイクバック判定
     const comparePlayer: string | null = body.comparePlayer ?? null;
     const shotCategory: string | null = body.shotCategory ?? null;
     const shotType: string | null = body.shotType ?? null;
@@ -101,6 +102,14 @@ export async function POST(req: NextRequest) {
     const poseDesc = poseMetrics
       ? `【骨格解析実測値】右肘:${poseMetrics.rightElbowAngle}° 左肘:${poseMetrics.leftElbowAngle}° 右膝:${poseMetrics.rightKneeAngle}°`
       : "【骨格データ】なし";
+
+    // 骨格座標から計算した客観的なテイクバック判定（映像認識より信頼できる確定情報として扱う）
+    const takebackDesc =
+      takeback?.verdict === "over"
+        ? `\n【骨格計測による確定情報：テイクバック＝引きすぎ】スイング全体の骨格座標を解析した結果、ラケットを最も引いたフレームで、推定ラケットヘッド（利き腕の肘→手首の延長で算出）が${takeback.shoulderLabel}のラインより明確に後方（外側）にありました（肩幅比 約${Math.round((takeback.beyondRatio ?? 0) * 100)}%超過）。これは骨格座標による客観計測であり、映像の見た目より信頼できる。診断では「テイクバック時にラケットが身体より後ろまで引かれている＝引きすぎ（オーバーテイクバック）」と必ず指摘し、コンパクトに直す改善策を述べること。「コンパクトに引けている」とは絶対に書かないこと。`
+        : takeback?.verdict === "compact"
+        ? `\n【骨格計測による確定情報：テイクバック＝コンパクト】スイング全体の骨格座標を解析した結果、ラケットを最も引いたフレームでも、推定ラケットヘッドは肩のライン内（前〜横）に収まっていました。テイクバックはコンパクトです。診断で「引きすぎ」と誤って指摘しないこと。`
+        : "";
 
     const compareSection = comparePlayer && PLAYER_PROFILES[comparePlayer]
       ? `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n【比較対象：${comparePlayer}】\n${PLAYER_PROFILES[comparePlayer]}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
@@ -215,6 +224,7 @@ export async function POST(req: NextRequest) {
 ✅ 現在の痛み：${painDesc}（確定・変更不可）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${poseDesc}
+${takebackDesc}
 ${shotSection}
 ${gripSection}
 ${compareSection}
@@ -269,7 +279,7 @@ ${proKnowledge}
 必ずJSON形式のみで返してください：
 {
   "observations": {
-    "takebackVsBody": "後ろに引きすぎ（オーバーテイクバック）" または "コンパクト（身体の前〜横に収まる）" または "確認できない",
+    "takebackVsBody": "後ろに引きすぎ（オーバーテイクバック）" または "コンパクト（身体の前〜横に収まる）" または "確認できない"（※上に【骨格計測による確定情報】がある場合は、それに必ず従ってこの値を決める。骨格計測は映像より信頼できる確定情報である）,
     "takebackEvidence": "テイクバック最深のフレームでラケット/手が身体（胴体）のどこ（前・横・後ろ）にあったかを具体的に",
     "frontFoot": "右足が前" または "左足が前" または "どちらも前に出ていない" または "確認できない",
     "stepIn": "踏み込めている（足が前へ動き体重移動あり）" または "その場で打っている" または "確認できない",
