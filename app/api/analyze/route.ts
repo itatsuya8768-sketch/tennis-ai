@@ -263,8 +263,20 @@ ${proKnowledge}
 - elbowAngle：インパクト時の利き腕肘の角度(度)、推定不可なら130
 - injuryRisk：「低」=問題なし / 「中」=軽度問題あり or 打点15cm以上後方 / 「中〜高」=痛みあり or 打点20cm以上後方 / 「高」=重大な問題あり
 
+【最優先の手順：observations を先に埋めてから文章を書く】
+文章（formAnalysis等）を書く前に、必ず動画を1フレームずつ見て、下記 observations の各項目を客観的に確定させること。各文章セクションは observations と絶対に矛盾させない（observationsでテイクバックが「後ろに引きすぎ」なのに、文章で「コンパクトに引けています」と書くのは厳禁）。observationsは「無難な良い評価」ではなく、実際に見えた事実を入れる。見えない項目は必ず「確認できない」にし、推測で埋めない。テイクバックや踏み込みの判定は、必ずどのフレームで何がどこにあったかという evidence を伴わせる。
+
 必ずJSON形式のみで返してください：
 {
+  "observations": {
+    "takebackVsBody": "後ろに引きすぎ（オーバーテイクバック）" または "コンパクト（身体の前〜横に収まる）" または "確認できない",
+    "takebackEvidence": "テイクバック最深のフレームでラケット/手が身体（胴体）のどこ（前・横・後ろ）にあったかを具体的に",
+    "frontFoot": "右足が前" または "左足が前" または "どちらも前に出ていない" または "確認できない",
+    "stepIn": "踏み込めている（足が前へ動き体重移動あり）" または "その場で打っている" または "確認できない",
+    "stepInEvidence": "フレーム間で前足と体重がどう動いたかを具体的に",
+    "faceAngle": "やや上向き（オープン）" または "垂直" または "やや下向き（かぶせ）" または "確認できない",
+    "contactPosition": "前で捉えている" または "やや後ろ" または "後ろ" または "確認できない"
+  },
   "formAnalysis": "...",
   "impactCheck": "...",
   "footwork": "...",
@@ -297,7 +309,7 @@ ${proKnowledge}
 
     const message = await anthropic.messages.create({
       model,
-      max_tokens: 2500,
+      max_tokens: 3000,
       temperature: 0, // 出力のブレを最小化（同じ動画なら毎回ほぼ同じスコアにする）
       messages: [{ role: "user", content: messageContent }],
     });
