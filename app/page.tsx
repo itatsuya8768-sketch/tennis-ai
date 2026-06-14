@@ -39,9 +39,9 @@ function analyzeTakeback(series: PoseFrame[], handedness: string): TakebackAnaly
   const valid: F[] = [];
   for (const f of series) {
     const v = f.vis, p = f.pts;
-    const shoulders = [11,12].filter(i=>p[i]&&(v[i]??0)>=0.3);
-    const hips      = [23,24].filter(i=>p[i]&&(v[i]??0)>=0.3);
-    if (!p[ELBOW]||!p[WRIST]||(v[ELBOW]??0)<0.4||(v[WRIST]??0)<0.4) continue;
+    const shoulders = [11,12].filter(i=>p[i]&&(v[i]??0)>=0.25);
+    const hips      = [23,24].filter(i=>p[i]&&(v[i]??0)>=0.25);
+    if (!p[ELBOW]||!p[WRIST]||(v[ELBOW]??0)<0.35||(v[WRIST]??0)<0.35) continue;
     if (shoulders.length===0||hips.length===0) continue;
     const headX = p[WRIST][0] + (p[WRIST][0]-p[ELBOW][0]); // 手首から前腕方向へ延長＝ラケットヘッド推定
     const shX = shoulders.reduce((s,i)=>s+p[i][0],0)/shoulders.length;
@@ -274,7 +274,7 @@ export default function HomePage() {
       setPoseActive(true); // モデル先読み＆オーバーレイ表示
       // 動画を等間隔でコマ送りして各コマで骨格検出（再生に依存しない確実な方式）
       const dur=isFinite(v.duration)&&v.duration>0?Math.min(v.duration,10):4;
-      const N=36;
+      const N=48;
       const times=Array.from({length:N},(_,i)=>+( (dur*0.98)*i/(N-1) ).toFixed(3));
       let n=0;
       try{n=await poseRef.current?.captureSeries?.(times)??0;}catch(e){console.warn("captureSeries error",e);}
