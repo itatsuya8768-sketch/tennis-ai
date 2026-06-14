@@ -281,25 +281,18 @@ export default function HomePage() {
     if(videoRef.current){
       const v=videoRef.current;
       try{poseRef.current?.clearSeries?.();}catch{}
-      try{v.muted=true;v.loop=true;v.playbackRate=0.85;v.currentTime=0;}catch{}
-      setPoseActive(true);
-      try{await v.play();}catch{}
-      // 骨格モデルの読み込みは非同期で、短い動画だと再生が先に終わってしまう。
-      // ループ再生しながら、十分なフレーム数が集まるか上限時間まで待つ。
-      const dur=isFinite(v.duration)&&v.duration>0?Math.min(v.duration,8):5;
-      const oneLoopMs=Math.round((dur/0.85)*1000);
-      const maxWaitMs=Math.min(oneLoopMs*3+1500,14000); // 最大でも約14秒で打ち切り
-      const t0=Date.now();
-      while(Date.now()-t0<maxWaitMs){
-        await new Promise(r=>setTimeout(r,250));
-        const n=(()=>{try{return poseRef.current?.getSeries?.()?.length??0;}catch{return 0;}})();
-        // 1ループ分以上の時間が経過し、かつ十分なフレームが集まったら終了
-        if(Date.now()-t0>oneLoopMs+800 && n>=25) break;
-      }
-      try{v.loop=false;v.playbackRate=1;v.pause();}catch{}
+      try{v.pause();v.muted=true;}catch{}
+      setPoseActive(true); // モデル先読み＆オーバーレイ表示
+      // 動画を等間隔でコマ送りして各コマで骨格検出（再生に依存しない確実な方式）
+      const dur=isFinite(v.duration)&&v.duration>0?Math.min(v.duration,10):4;
+      const N=36;
+      const times=Array.from({length:N},(_,i)=>+( (dur*0.98)*i/(N-1) ).toFixed(3));
+      let n=0;
+      try{n=await poseRef.current?.captureSeries?.(times)??0;}catch(e){console.warn("captureSeries error",e);}
+      try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);setPoseDebug(`骨格計測: frames=${series.length} / 判定=${takeback.verdict} / ratio=${takeback.beyondRatio} / 解析フレーム=${takeback.frames}`);console.log("takeback",takeback,"frames",series.length);}catch(e:any){setPoseDebug(`骨格計測エラー: ${e?.message??e}`);console.warn("takeback analysis error",e);}
+      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);setPoseDebug(`骨格計測: frames=${series.length} / 判定=${takeback.verdict} / ratio=${takeback.beyondRatio} / 解析フレーム=${takeback.frames}`);console.log("takeback",takeback,"captured",n,"series",series.length);}catch(e:any){setPoseDebug(`骨格計測エラー: ${e?.message??e}`);console.warn("takeback analysis error",e);}
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};

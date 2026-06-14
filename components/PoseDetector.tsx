@@ -26,6 +26,8 @@ export interface PoseDetectorHandle {
   getLatestMetrics: () => PoseMetrics | null;
   getSeries: () => PoseFrame[];
   clearSeries: () => void;
+  /** 動画を指定時刻にコマ送りして各コマで骨格検出する（確実な方式）。集まったフレーム数を返す。 */
+  captureSeries: (times: number[]) => Promise<number>;
 }
 
 function angleBetween(a: number[], b: number[], c: number[]) {
@@ -44,13 +46,8 @@ const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
     const poseRef    = useRef<any>(null);
     const latestRef  = useRef<PoseMetrics | null>(null);
     const seriesRef  = useRef<PoseFrame[]>([]);
-    const rafRef     = useRef<number>(0);
 
-    useImperativeHandle(ref, () => ({
-      getLatestMetrics: () => latestRef.current,
-      getSeries: () => seriesRef.current,
-      clearSeries: () => { seriesRef.current = []; },
-    }));
+    const readyRef = useRef<Promise<any> | null>(null);
 
     const onResults = useCallback((results: any) => {
       const canvas = canvasRef.current;
@@ -118,58 +115,66 @@ const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
       }
     }, [videoRef, onMetrics]);
 
-    useEffect(() => {
-      if (!active) return;
-
-      let cancelled = false;
-
-      const init = async () => {
-        try {
-          // MediaPipe Pose をCDNから動的インポート
+    // Pose インスタンスを1度だけ生成（読み込み完了を待てる）
+    const ensurePose = useCallback(async () => {
+      if (poseRef.current) return poseRef.current;
+      if (!readyRef.current) {
+        readyRef.current = (async () => {
           const { Pose } = await import("@mediapipe/pose");
-          if (cancelled) return;
-
           const pose = new Pose({
-            locateFile: (file: string) =>
-              `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+            locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
           });
-
           pose.setOptions({
             modelComplexity: 1,
-            smoothLandmarks: true,
+            smoothLandmarks: false,
             enableSegmentation: false,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5,
           });
-
           pose.onResults(onResults);
           poseRef.current = pose;
+          return pose;
+        })();
+      }
+      return readyRef.current;
+    }, [onResults]);
 
-          const video = videoRef.current;
-          if (!video) return;
+    // 動画をコマ送りして各コマで骨格検出（再生タイミングに依存しない確実な方式）
+    const captureSeries = useCallback(async (times: number[]) => {
+      const video = videoRef.current;
+      if (!video) return 0;
+      let pose: any;
+      try { pose = await ensurePose(); } catch (e) { console.warn("pose load failed", e); return 0; }
+      try { video.pause(); } catch {}
+      for (const t of times) {
+        try {
+          await new Promise<void>((res) => {
+            let done = false;
+            const finish = () => { if (done) return; done = true; video.removeEventListener("seeked", onSeeked); res(); };
+            const onSeeked = () => finish();
+            video.addEventListener("seeked", onSeeked);
+            try { video.currentTime = t; } catch { finish(); }
+            setTimeout(finish, 700);
+          });
+          await new Promise(r => setTimeout(r, 30)); // フレーム描画待ち
+          await pose.send({ image: video });
+        } catch { /* このコマはスキップ */ }
+      }
+      return seriesRef.current.length;
+    }, [videoRef, ensurePose]);
 
-          const detect = async () => {
-            if (cancelled) return;
-            if (video.readyState >= 2 && !video.paused) {
-              await pose.send({ image: video });
-            }
-            rafRef.current = requestAnimationFrame(detect);
-          };
-          rafRef.current = requestAnimationFrame(detect);
+    useImperativeHandle(ref, () => ({
+      getLatestMetrics: () => latestRef.current,
+      getSeries: () => seriesRef.current,
+      clearSeries: () => { seriesRef.current = []; },
+      captureSeries,
+    }), [captureSeries]);
 
-        } catch (e) {
-          console.warn("MediaPipe init error:", e);
-        }
-      };
-
-      init();
-
-      return () => {
-        cancelled = true;
-        cancelAnimationFrame(rafRef.current);
-        poseRef.current?.close?.();
-      };
-    }, [active, onResults, videoRef]);
+    // active になったら骨格モデルを先読みしておく（実際の検出はコマ送りで行う）
+    useEffect(() => {
+      if (!active) return;
+      ensurePose().catch(e => console.warn("MediaPipe preload error:", e));
+    }, [active, ensurePose]);
 
     return (
       <canvas
