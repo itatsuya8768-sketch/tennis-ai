@@ -70,6 +70,48 @@ function analyzeTakeback(series: PoseFrame[], handedness: string): TakebackAnaly
   return { verdict, beyondRatio:Math.round(beyondRatio*100)/100, shoulderLabel, frames:valid.length };
 }
 
+// ── フォロースルー客観解析 ──
+// スイング後半（インパクト後）で、利き手（手首）が肘より上まで上がっているかを計算する。
+// スムーズに振れていれば手は肘より上に抜ける。垂直方向の比較なので前後の向きに依存しない。
+export interface FollowThroughAnalysis {
+  verdict: "high" | "low" | "unknown"; // high=手が肘より上（スムーズ）/ low=肘より下のまま
+  aboveRatio: number;                  // 前腕長に対する、手首が肘より上に出た量
+  frames: number;
+}
+function analyzeFollowThrough(series: PoseFrame[], handedness: string): FollowThroughAnalysis {
+  const RIGHT = handedness !== "左利き";
+  const ELBOW = RIGHT ? 14 : 13;
+  const WRIST = RIGHT ? 16 : 15;
+  type G = { t:number; wx:number; wy:number; ex:number; ey:number };
+  const valid: G[] = [];
+  for (const f of series) {
+    const v = f.vis, p = f.pts;
+    if (!p[ELBOW]||!p[WRIST]||(v[ELBOW]??0)<0.35||(v[WRIST]??0)<0.35) continue;
+    valid.push({ t:f.t, wx:p[WRIST][0], wy:p[WRIST][1], ex:p[ELBOW][0], ey:p[ELBOW][1] });
+  }
+  if (valid.length < 6) return { verdict:"unknown", aboveRatio:0, frames:valid.length };
+
+  // コンタクト＝手首が水平に最高速のフレーム。それ以降をフォロースルー区間とする。
+  let ci = 0, ms = -1;
+  for (let i=1;i<valid.length;i++){
+    const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
+    const sp = Math.abs(valid[i].wx - valid[i-1].wx)/dt;
+    if (sp>ms){ms=sp;ci=i;}
+  }
+  const win = valid.slice(Math.min(ci+1, valid.length-1));
+  if (win.length < 2) return { verdict:"unknown", aboveRatio:0, frames:valid.length };
+
+  // フォロースルー中、手首が最も高く上がった点（画面yが最小）で肘との上下関係を見る
+  let hi = win[0];
+  for (const g of win){ if (g.wy < hi.wy) hi = g; }
+  const forearm = Math.hypot(hi.wx-hi.ex, hi.wy-hi.ey) || 1;
+  const aboveRatio = (hi.ey - hi.wy) / forearm; // 画面yは下向き正なので、手首が肘より上だと正
+  let verdict: "high"|"low"|"unknown" = "unknown";
+  if (aboveRatio > 0.2) verdict = "high";
+  else if (aboveRatio < -0.1) verdict = "low";
+  return { verdict, aboveRatio:Math.round(aboveRatio*100)/100, frames:valid.length };
+}
+
 function useWindowWidth() {
   const [w,setW]=useState(1200);
   useEffect(()=>{setW(window.innerWidth);const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
@@ -264,7 +306,7 @@ export default function HomePage() {
   const handleStart=async()=>{
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
-    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;
+    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
     if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
     if(videoRef.current){
       const v=videoRef.current;
@@ -280,12 +322,12 @@ export default function HomePage() {
       try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);console.log("[takeback]",takeback,"captured",n,"series",series.length);}catch(e:any){console.warn("takeback analysis error",e);}
+      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);followThrough=analyzeFollowThrough(series,handedness);console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);}catch(e:any){console.warn("pose analysis error",e);}
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,frames,grips,comparePlayer,shotCategory,shotType})});
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
