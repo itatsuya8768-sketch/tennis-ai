@@ -25,7 +25,7 @@ export default function LoginPage() {
       <div style={{background:"#fff",borderRadius:24,border:"1px solid #e2e8f0",padding:"36px 32px",width:"100%",maxWidth:420,boxShadow:"0 4px 32px rgba(0,0,0,0.06)"}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>🎾</div>
-          <div style={{fontWeight:900,fontSize:22,color:"#0f172a"}}>TennisAI</div>
+          <div style={{fontWeight:900,fontSize:19,color:"#0f172a"}}>TennisAI365Coach</div>
           <div style={{fontSize:13,color:"#64748b",marginTop:4}}>ログインしてフォーム診断を始めよう</div>
         </div>
         {error && (

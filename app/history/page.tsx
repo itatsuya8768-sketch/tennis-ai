@@ -38,7 +38,7 @@ export default function HistoryPage() {
           <Link href="/" style={{ display:"flex", alignItems:"center", gap:10, textDecoration:"none" }}>
             <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#84cc16,#22c55e)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🎾</div>
             <div>
-              <div style={{ fontWeight:900, fontSize:15, color:"#0f172a", lineHeight:1 }}>TennisAI</div>
+              <div style={{ fontWeight:900, fontSize:13, color:"#0f172a", lineHeight:1.1 }}>TennisAI365Coach</div>
               <div style={{ fontSize:9, color:"#84cc16", fontWeight:700 }}>FORM ANALYZER</div>
             </div>
           </Link>

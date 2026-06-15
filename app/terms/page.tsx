@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "利用規約・プライバシーポリシー | TennisAI" };
+export const metadata = { title: "利用規約・プライバシーポリシー | TennisAI365Coach" };
 
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "24px 22px", marginBottom: 16 };
 const h2: React.CSSProperties = { fontWeight: 900, fontSize: 18, color: "#0f172a", margin: "0 0 12px" };
@@ -31,7 +31,7 @@ export default function TermsPage() {
           <h2 style={h2}>利用規約</h2>
 
           <h3 style={h3}>第1条（適用）</h3>
-          <p style={p}>本規約は、本サービス「TennisAI」（以下「本サービス」）の提供条件および本サービスの運営者（以下「運営者」）と利用者との間の権利義務関係を定めるものです。利用者は、本サービスを利用することで本規約に同意したものとみなされます。</p>
+          <p style={p}>本規約は、本サービス「TennisAI365Coach」（以下「本サービス」）の提供条件および本サービスの運営者（以下「運営者」）と利用者との間の権利義務関係を定めるものです。利用者は、本サービスを利用することで本規約に同意したものとみなされます。</p>
 
           <h3 style={h3}>第2条（サービス内容）</h3>
           <p style={p}>本サービスは、利用者がアップロードしたテニスのスイング動画をAIが解析し、フォームに関する診断・アドバイスを提供するものです。診断はAIによる推定であり、動画から得られる情報のみを利用しているため、実際と相違がある場合があります。</p>

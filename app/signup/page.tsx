@@ -40,7 +40,7 @@ export default function SignupPage() {
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>🎾</div>
           <div style={{fontWeight:900,fontSize:22,color:"#0f172a"}}>新規登録</div>
-          <div style={{fontSize:13,color:"#64748b",marginTop:4}}>無料でTennisAIを始めよう</div>
+          <div style={{fontSize:13,color:"#64748b",marginTop:4}}>無料でTennisAI365Coachを始めよう</div>
         </div>
         {error && (
           <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#991b1b",marginBottom:16}}>⚠️ {error}</div>

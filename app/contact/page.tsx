@@ -22,8 +22,8 @@ export default function ContactPage() {
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           access_key: WEB3FORMS_KEY,
-          subject: "【TennisAI】お問い合わせ",
-          from_name: "TennisAI お問い合わせ",
+          subject: "【TennisAI365Coach】お問い合わせ",
+          from_name: "TennisAI365Coach お問い合わせ",
           name,
           email: email || "（未入力）",
           message,

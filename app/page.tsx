@@ -348,7 +348,7 @@ export default function HomePage() {
       <header style={{background:"rgba(255,255,255,0.92)",WebkitBackdropFilter:"blur(12px)",backdropFilter:"blur(12px)",borderBottom:"1px solid #e2e8f0",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,position:"sticky",top:0,zIndex:200}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#84cc16,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎾</div>
-          <div><div style={{fontWeight:900,fontSize:15,color:"#0f172a",lineHeight:1}}>TennisAI</div><div style={{fontSize:9,color:"#84cc16",fontWeight:700,letterSpacing:"0.1em"}}>FORM ANALYZER</div></div>
+          <div><div style={{fontWeight:900,fontSize:13,color:"#0f172a",lineHeight:1.1}}>TennisAI365Coach</div><div style={{fontSize:9,color:"#84cc16",fontWeight:700,letterSpacing:"0.1em"}}>FORM ANALYZER</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {!isMobile&&<Link href="/history" style={{fontSize:12,fontWeight:700,color:"#475569",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc"}}>📋 履歴</Link>}
