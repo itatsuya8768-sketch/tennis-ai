@@ -433,7 +433,7 @@ export default function HomePage() {
             <button onClick={handleStart} disabled={status==="loading"} style={{width:"100%",padding:"17px",borderRadius:14,background:status==="loading"?"#e2e8f0":"linear-gradient(90deg,#84cc16,#22c55e)",color:status==="loading"?"#94a3b8":"#fff",fontWeight:900,fontSize:16,border:"none",cursor:status==="loading"?"not-allowed":"pointer",boxShadow:status==="loading"?"none":"0 4px 20px rgba(132,204,22,0.4)",letterSpacing:"0.03em"}}>
               {status==="loading"?"⏳ AI解析中...":"🤖 AI精密診断を開始する"}
             </button>
-            {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#16a34a":(usage.remaining===0?"#ef4444":"#475569")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:`無料診断 残り ${usage.remaining} 回です（全${usage.limit}回）`}</div>}
+            {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#16a34a":(usage.remaining===0?"#ef4444":"#475569")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:usage.remaining===0?`無料お試し（1回）は使用済みです。続けるにはPremiumへ`:`無料お試し診断 残り ${usage.remaining} 回`}</div>}
           </SectionCard>
         </div>}
 
@@ -476,34 +476,27 @@ export default function HomePage() {
               {painAreas.map(a=><span key={a} style={{fontSize:11,padding:"4px 10px",borderRadius:99,background:"#fee2e2",color:"#991b1b",fontWeight:700}}>🔴 {a}：{PAIN_LEVEL_LABELS[painLevels[a]??2]}</span>)}
             </div>
 
-            {/* 詳細診断レポート：Premiumは全文＋全セクション、無料は冒頭＋CTA */}
+            {/* 詳細診断レポート：無料・Premiumとも全文＋全セクション（無料はお試し1回） */}
             <div style={{background:"#fff",border:"2px solid #84cc16",borderRadius:20,padding:"20px 18px",marginBottom:12}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                 <div style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>📋 詳細診断レポート</div>
                 {isPremium
                   ? <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:700}}>✓ Premium</span>
-                  : <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700}}>続きはPremium</span>}
+                  : <span style={{fontSize:11,padding:"4px 12px",borderRadius:99,background:"#fef3c7",color:"#d97706",fontWeight:700}}>無料お試し</span>}
               </div>
-              {isPremium ? (
-                [{t:"🎾 フォーム分析",x:report.sections.formAnalysis},{t:"🎯 打点チェック",x:report.sections.impactCheck},{t:"👟 フットワーク",x:report.sections.footwork},{t:"🩹 怪我ケア・予防",x:report.sections.injuryCare}]
-                  .filter(s=>s.x&&s.x.trim())
-                  .map(s=>(
-                    <div key={s.t} style={{marginBottom:14}}>
-                      <div style={{fontWeight:800,fontSize:13,color:"#16a34a",marginBottom:6}}>{s.t}</div>
-                      <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{s.x}</div>
-                    </div>
-                  ))
-              ) : (<>
-                <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,marginBottom:14,whiteSpace:"pre-wrap",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
-                  {report.sections.formAnalysis}
-                </div>
-                <button onClick={goPremium} style={{width:"100%",padding:"14px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(132,204,22,0.4)"}}>🔒 Premiumで全文＋打点・フットワーク・怪我ケアを見る</button>
-              </>)}
+              {[{t:"🎾 フォーム分析",x:report.sections.formAnalysis},{t:"🎯 打点チェック",x:report.sections.impactCheck},{t:"👟 フットワーク",x:report.sections.footwork},{t:"🩹 怪我ケア・予防",x:report.sections.injuryCare}]
+                .filter(s=>s.x&&s.x.trim())
+                .map(s=>(
+                  <div key={s.t} style={{marginBottom:14}}>
+                    <div style={{fontWeight:800,fontSize:13,color:"#16a34a",marginBottom:6}}>{s.t}</div>
+                    <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#1e293b",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{s.x}</div>
+                  </div>
+                ))}
             </div>
             {/* Premium CTA（無料会員のみ表示） */}
             {!isPremium && <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-              <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🔑 プレミアムプランで<br/><span style={{color:"#84cc16"}}>完全AI診断</span>を解放する</div>
-              <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 詳細フォーム解析アドバイス","✅ 打点・フットワーク改善提案","✅ 怪我に合わせた代替フォーム提案","✅ プロ選手との詳細比較"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
+              <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🎾 無料診断はこの1回限り<br/>続けるなら<span style={{color:"#84cc16"}}>Premiumプラン</span></div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 毎月30回まで診断し放題","✅ フォーム・打点・フットワーク・怪我ケアの全診断","✅ プロ選手との詳細比較","✅ いつでも解約OK"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
               <button onClick={goPremium} style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(132,204,22,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
             </div>}
           </div>}

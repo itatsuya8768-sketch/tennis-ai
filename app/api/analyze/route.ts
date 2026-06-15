@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    // 利用回数の制限（無料: 累計3回 / Premium: 月30回）
-    const FREE_LIMIT = 3;
+    // 利用回数の制限（無料: 累計1回のみ / Premium: 月30回）
+    const FREE_LIMIT = 1;
     const PREMIUM_MONTHLY_LIMIT = 30;
     // 無制限のデモ/オーナーアカウント（全機能を回数無制限で利用可）
     const DEMO_EMAILS = ["i.tatsuya8768@gmail.com"];
