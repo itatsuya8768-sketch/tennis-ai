@@ -345,7 +345,9 @@ ${proKnowledge}
 
     const hasImages = frames.length > 0 || grips.length > 0;
     const messageContent: Anthropic.MessageParam["content"] = hasImages ? contentParts : textPrompt;
-    const model = hasImages ? "claude-opus-4-5" : "claude-haiku-4-5-20251001";
+    // 画像ありの診断モデル。コスト削減のため Opus(claude-opus-4-5) から Sonnet 4.6 に変更。
+    // 精度が落ちる場合は "claude-opus-4-5" に戻す。
+    const model = hasImages ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
 
     const message = await anthropic.messages.create({
       model,
