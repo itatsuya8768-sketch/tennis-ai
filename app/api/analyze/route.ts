@@ -90,6 +90,33 @@ export async function POST(req: NextRequest) {
     const comparePlayer: string | null = body.comparePlayer ?? null;
     const shotCategory: string | null = body.shotCategory ?? null;
     const shotType: string | null = body.shotType ?? null;
+
+    // 前回の「同じショット」の診断を取得し、フォームの変化フィードバックに使う
+    let prevContext = "";
+    try {
+      if (shotCategory) {
+        const { data: prevRows } = await supabase
+          .from("diagnoses")
+          .select("created_at, ai_report")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(25);
+        const prev = (prevRows ?? []).find(
+          (r: any) => r?.ai_report?.shotCategory === shotCategory
+        );
+        if (prev?.ai_report) {
+          const pr = prev.ai_report;
+          const d = new Date(prev.created_at);
+          const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+          prevContext =
+            `\n【前回の同じショットの診断（${dateStr}・比較用の参考データ）】\n` +
+            `ショット：${pr.shotCategory ?? ""}${pr.shotType ? `（${pr.shotType}）` : ""}\n` +
+            `前回スコア：フォーム${pr.formScore} / フットワーク${pr.footworkScore} / 怪我リスク${pr.injuryRisk}\n` +
+            `前回のフォーム指摘（要約）：${(pr.sections?.formAnalysis ?? "").slice(0, 200)}\n` +
+            `前回の打点指摘（要約）：${(pr.sections?.impactCheck ?? "").slice(0, 150)}\n`;
+        }
+      }
+    } catch {}
     const frames: string[] = Array.isArray(body.frames)
       ? body.frames.filter((f: unknown) => typeof f === "string" && f.length > 100)
       : [];
@@ -254,6 +281,7 @@ export async function POST(req: NextRequest) {
 ${poseDesc}
 ${takebackDesc}
 ${followDesc}
+${prevContext}
 ${shotSection}
 ${gripSection}
 ${compareSection}
@@ -298,7 +326,9 @@ ${proKnowledge}
 
 4. injuryCare：現在の痛みへの対処法、将来的なリスク、推奨ストレッチ・エクササイズを3つ具体的に。★最優先改善点を末尾に記載。
 
-5. scores：以下の基準で算出（同じ動画なら毎回同じスコアになるよう客観的に判断）
+5. progress（前回との比較）：上に【前回の同じショットの診断】がある場合のみ記入する。前回と今回を比べて「改善した点・まだ課題として残る点・変化した点」を2〜3文で具体的に述べ、スコアの増減（例：フォーム65→72）にも触れる。別の動画どうしの比較なので断定しすぎず「〜の傾向」「〜が改善したように見えます」と表現する。前回データが上に無い場合は、progress を必ず空文字 "" にする（推測で過去と比較しない）。
+
+6. scores：以下の基準で算出（同じ動画なら毎回同じスコアになるよう客観的に判断）
 
 【スコア算出基準】
 - formScore：体幹・骨盤(30点) + テイクバック〜フォロースルー(30点) + 肩のタイミング(20点) + 安定性(20点)
@@ -326,6 +356,7 @@ ${proKnowledge}
   "impactCheck": "...",
   "footwork": "...",
   "injuryCare": "...",
+  "progress": "前回との比較（前回データが無ければ空文字）",
   "scores": {
     "formScore": 0から100の整数,
     "footworkScore": 0から100の整数,
@@ -378,6 +409,7 @@ ${proKnowledge}
       elbowAngle:    130,
       injuryRisk:    hasPain ? "中" : "低" as string,
     };
+    let progress = "";
 
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
@@ -388,6 +420,7 @@ ${proKnowledge}
         footwork:     parsed.footwork     ?? "",
         injuryCare:   parsed.injuryCare   ?? "",
       };
+      progress = typeof parsed.progress === "string" ? parsed.progress.trim() : "";
       if (parsed.scores) {
         aiScores = {
           formScore:     Number(parsed.scores.formScore)     || aiScores.formScore,
@@ -422,6 +455,7 @@ ${proKnowledge}
       takebackDepth: 0,
       impactOffset:  aiScores.impactOffset,
       sections,
+      progress,
       comparePlayer,
       shotCategory,
       shotType,

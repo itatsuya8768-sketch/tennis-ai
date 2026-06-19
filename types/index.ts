@@ -25,6 +25,7 @@ export interface AIReport {
     footwork: string;
     injuryCare: string;
   };
+  progress?: string | null;
   comparePlayer?: string | null;
   shotCategory?: string | null;
   shotType?: string | null;

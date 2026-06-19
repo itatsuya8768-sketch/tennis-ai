@@ -471,6 +471,12 @@ export default function HomePage() {
 
             <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",marginTop:-8,marginBottom:16}}>※ スコア・速度・角度などの数値はAIによる推定値です</div>
 
+            {/* 前回との比較（同じショットの前回診断がある場合のみ） */}
+            {report.progress && report.progress.trim() && <div style={{background:"linear-gradient(135deg,#eff6ff,#f0fdf4)",border:"2px solid #93c5fd",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
+              <div style={{fontWeight:800,fontSize:14,color:"#1d4ed8",marginBottom:8}}>📈 前回との比較</div>
+              <div style={{fontSize:13,color:"#1e293b",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{report.progress}</div>
+            </div>}
+
             {/* スコア詳細（無料） */}
             <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
               <div style={{fontWeight:800,fontSize:14,color:"#0f172a",marginBottom:12}}>📊 スコア詳細（AI推定）</div>

@@ -154,6 +154,12 @@ export default function HistoryPage() {
                       </div>
                     ))}
                   </div>
+                  {rec.ai_report.progress && rec.ai_report.progress.trim() && (
+                    <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0fdf4)", border:"1px solid #93c5fd", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#1d4ed8", marginBottom:6 }}>📈 前回との比較</div>
+                      <div style={{ fontSize:12, color:"#1e293b", lineHeight:1.7 }}>{rec.ai_report.progress}</div>
+                    </div>
+                  )}
                   {rec.ai_report.sections && (
                     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                       {[
