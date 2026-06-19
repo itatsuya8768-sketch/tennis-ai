@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    const FREE_LIMIT = 1;
+    const FREE_LIMIT = 3;
     const PREMIUM_MONTHLY_LIMIT = 30;
     const DEMO_EMAILS = ["i.tatsuya8768@gmail.com"];
     if (user.email && DEMO_EMAILS.includes(user.email.toLowerCase())) {

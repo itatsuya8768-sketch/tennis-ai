@@ -164,6 +164,17 @@ function LoadingOverlay({hasFrames}:{hasFrames:boolean}) {
   return <div style={{background:"#fff",borderRadius:20,border:"1px solid #e2e8f0",padding:"40px 24px",marginBottom:16,display:"flex",flexDirection:"column",alignItems:"center",gap:20}}><div style={{position:"relative",width:90,height:90}}><svg viewBox="0 0 90 90" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}><circle cx="45" cy="45" r="40" fill="none" stroke="#e2e8f0" strokeWidth="3"/><circle cx="45" cy="45" r="40" fill="none" stroke="#84cc16" strokeWidth="4" strokeDasharray="251" strokeLinecap="round" style={{animation:"dashSpin 2s linear infinite",transformOrigin:"45px 45px"}}/></svg><div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>🎾</div></div><div style={{width:"100%",maxWidth:300,display:"flex",flexDirection:"column",gap:10}}>{steps.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10,opacity:i<=step?1:0.3,transition:"opacity 0.4s"}}><div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:i<step?"#84cc16":i===step?"#bef264":"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:900}}>{i<step?"✓":i+1}</div><span style={{fontSize:13,color:i<=step?"#1e293b":"#94a3b8",fontWeight:500}}>{s}</span></div>)}</div>;</div>
 }
 
+function SiteBanner() {
+  return <a href="https://tennis-site.vercel.app/" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:12,textDecoration:"none",background:"linear-gradient(135deg,#ecfccb,#f0fdf4)",border:"1px solid #bef264",borderRadius:16,padding:"14px 16px",marginBottom:16}}>
+    <div style={{fontSize:26,flexShrink:0}}>🎾</div>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontWeight:800,fontSize:13,color:"#15803d"}}>テニスのお役立ち情報サイト</div>
+      <div style={{fontSize:11,color:"#64748b",marginTop:2}}>おすすめ用品・上達情報をチェック →</div>
+    </div>
+    <div style={{fontSize:18,color:"#84cc16",flexShrink:0}}>↗</div>
+  </a>;
+}
+
 async function extractFrames(videoUrl:string,duration:number):Promise<string[]> {
   return new Promise((resolve)=>{
     const video=document.createElement("video");
@@ -433,8 +444,9 @@ export default function HomePage() {
             <button onClick={handleStart} disabled={status==="loading"} style={{width:"100%",padding:"17px",borderRadius:14,background:status==="loading"?"#e2e8f0":"linear-gradient(90deg,#84cc16,#22c55e)",color:status==="loading"?"#94a3b8":"#fff",fontWeight:900,fontSize:16,border:"none",cursor:status==="loading"?"not-allowed":"pointer",boxShadow:status==="loading"?"none":"0 4px 20px rgba(132,204,22,0.4)",letterSpacing:"0.03em"}}>
               {status==="loading"?"⏳ AI解析中...":"🤖 AI精密診断を開始する"}
             </button>
-            {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#16a34a":(usage.remaining===0?"#ef4444":"#475569")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:usage.remaining===0?`無料お試し（1回）は使用済みです。続けるにはPremiumへ`:`無料お試し診断 残り ${usage.remaining} 回`}</div>}
+            {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#16a34a":(usage.remaining===0?"#ef4444":"#475569")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:usage.remaining===0?`無料診断（全${usage.limit}回）を使い切りました。続けるにはPremiumへ`:`無料診断 残り ${usage.remaining} 回（全${usage.limit}回）`}</div>}
           </SectionCard>
+          <SiteBanner/>
         </div>}
 
         {showRight&&<div style={{minWidth:0}}>
@@ -447,7 +459,7 @@ export default function HomePage() {
 
           {status==="idle"&&<SectionCard style={{textAlign:"center",padding:"40px 24px"}}><div style={{fontSize:44,marginBottom:12}}>🎾</div><div style={{fontSize:15,fontWeight:700,color:"#64748b"}}>診断レポートがここに表示されます</div><div style={{fontSize:12,color:"#94a3b8",marginTop:6,lineHeight:1.6}}>{isMobile?"「入力フォーム」タブで入力して診断を開始してください":"左のフォームに入力して「AI精密診断を開始する」を押してください"}</div></SectionCard>}
 
-          {status==="loading"&&<LoadingOverlay hasFrames={hasFrames}/>}
+          {status==="loading"&&<><LoadingOverlay hasFrames={hasFrames}/><SiteBanner/></>}
 
           {status==="error"&&<SectionCard style={{textAlign:"center",padding:"32px 24px"}}><div style={{fontSize:40,marginBottom:12}}>⚠️</div><div style={{fontSize:14,fontWeight:700,color:"#ef4444",marginBottom:8}}>診断中にエラーが発生しました</div><div style={{fontSize:12,color:"#64748b",marginBottom:16}}>{errMsg}</div><button onClick={()=>setStatus("idle")} style={{padding:"10px 24px",borderRadius:10,background:"#f1f5f9",border:"1px solid #e2e8f0",color:"#475569",fontWeight:700,cursor:"pointer"}}>もう一度試す</button></SectionCard>}
 
@@ -495,7 +507,7 @@ export default function HomePage() {
             </div>
             {/* Premium CTA（無料会員のみ表示） */}
             {!isPremium && <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:20,padding:"24px 20px",border:"1px solid rgba(132,204,22,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-              <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🎾 無料診断はこの1回限り<br/>続けるなら<span style={{color:"#84cc16"}}>Premiumプラン</span></div>
+              <div style={{fontSize:isMobile?17:19,fontWeight:900,color:"#fff",textAlign:"center",lineHeight:1.5}}>🎾 もっと診断するなら<br/><span style={{color:"#84cc16"}}>Premiumプラン</span></div>
               <div style={{display:"flex",flexDirection:"column",gap:7,width:"100%"}}>{["✅ 毎月30回まで診断し放題","✅ フォーム・打点・フットワーク・怪我ケアの全診断","✅ プロ選手との詳細比較","✅ いつでも解約OK"].map(f=><div key={f} style={{fontSize:12,color:"#94a3b8"}}>{f}</div>)}</div>
               <button onClick={goPremium} style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#84cc16,#22c55e)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(132,204,22,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
             </div>}
