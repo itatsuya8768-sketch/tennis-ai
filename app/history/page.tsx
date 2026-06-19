@@ -17,6 +17,12 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [selected, setSelected] = useState<DiagnosisRecord | null>(null);
+  const [shotFilter, setShotFilter] = useState<string>("all");
+
+  const shotOf = (rec: DiagnosisRecord) => rec.ai_report?.shotCategory || "その他・未選択";
+  // 履歴に存在するショット種類を出現順で抽出
+  const shotCategories = Array.from(new Set(records.map(shotOf)));
+  const filtered = shotFilter === "all" ? records : records.filter(r => shotOf(r) === shotFilter);
 
   useEffect(() => {
     fetch("/api/history")
@@ -79,15 +85,39 @@ export default function HistoryPage() {
           </div>
         )}
 
+        {/* ショット別フィルター */}
+        {!loading && !error && records.length > 0 && shotCategories.length > 1 && (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
+            {["all", ...shotCategories].map(cat => {
+              const active = shotFilter === cat;
+              const count = cat === "all" ? records.length : records.filter(r => shotOf(r) === cat).length;
+              return (
+                <button key={cat} onClick={() => setShotFilter(cat)}
+                  style={{ padding:"7px 14px", borderRadius:99, fontSize:12, fontWeight:700, cursor:"pointer",
+                    border: active ? "2px solid #84cc16" : "1px solid #e2e8f0",
+                    background: active ? "#f0fdf4" : "#fff",
+                    color: active ? "#16a34a" : "#64748b" }}>
+                  {cat === "all" ? "すべて" : cat}（{count}）
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* 履歴リスト */}
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {records.map(rec => (
+          {filtered.map(rec => (
             <div key={rec.id} onClick={() => setSelected(selected?.id === rec.id ? null : rec)}
               style={{ background:"#fff", borderRadius:16, border: selected?.id===rec.id ? "2px solid #84cc16" : "1px solid #e2e8f0", padding:"16px 20px", cursor:"pointer", transition:"all 0.15s" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:"#94a3b8", marginBottom:4 }}>{formatDate(rec.created_at)}</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {rec.ai_report?.shotCategory && (
+                      <span style={{ fontSize:11, padding:"3px 9px", borderRadius:99, background:"#fef3c7", color:"#b45309", fontWeight:700 }}>
+                        🎾 {rec.ai_report.shotCategory}{rec.ai_report.shotType ? `（${rec.ai_report.shotType}）` : ""}
+                      </span>
+                    )}
                     <span style={{ fontSize:11, padding:"3px 9px", borderRadius:99, background:"#e0f2fe", color:"#0369a1", fontWeight:700 }}>{rec.handedness}</span>
                     <span style={{ fontSize:11, padding:"3px 9px", borderRadius:99, background:"#f0fdf4", color:"#15803d", fontWeight:700 }}>フォア {rec.forehand}</span>
                     <span style={{ fontSize:11, padding:"3px 9px", borderRadius:99, background:"#f0fdf4", color:"#15803d", fontWeight:700 }}>バック {rec.backhand}</span>

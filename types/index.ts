@@ -25,6 +25,9 @@ export interface AIReport {
     footwork: string;
     injuryCare: string;
   };
+  comparePlayer?: string | null;
+  shotCategory?: string | null;
+  shotType?: string | null;
 }
 
 export interface DiagnosisRecord {
