@@ -267,6 +267,8 @@ export default function HomePage() {
 
   const fetchUsage=()=>{fetch("/api/usage").then(r=>r.json()).then(d=>{if(!d.error)setUsage(d);}).catch(()=>{});};
   useEffect(()=>{fetchUsage();},[]); // eslint-disable-line react-hooks/exhaustive-deps
+  // サイト訪問を記録（1セッション1回のみ）
+  useEffect(()=>{try{if(!sessionStorage.getItem("visited")){sessionStorage.setItem("visited","1");fetch("/api/track-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:"/"})}).catch(()=>{});}}catch{}},[]);
 
   // 決済から戻ってきたら Premium 状態を同期（Webhookの保険）
   useEffect(()=>{
@@ -363,6 +365,7 @@ export default function HomePage() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {!isMobile&&<Link href="/history" style={{fontSize:12,fontWeight:700,color:"#475569",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc"}}>📋 履歴</Link>}
+          {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:12,fontWeight:700,color:"#475569",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc"}}>📊 統計</Link>}
           <AuthButton/>
         </div>
       </header>
