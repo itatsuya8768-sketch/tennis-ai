@@ -16,8 +16,8 @@ html, body {
 
 /* スクロールバー細め */
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-track { background: #14161a; }
+::-webkit-scrollbar-thumb { background: #3a3d44; border-radius: 99px; }
 
 /* range input */
 input[type="range"] { cursor: pointer; }
