@@ -366,6 +366,7 @@ export default function HomePage() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {!isMobile&&<Link href="/history" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📋 履歴</Link>}
+          {!isMobile&&(isPremium||usage?.plan==="unlimited")&&<Link href="/weekly" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>🗓️ 週次メニュー</Link>}
           {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📊 統計</Link>}
           <AuthButton/>
         </div>
