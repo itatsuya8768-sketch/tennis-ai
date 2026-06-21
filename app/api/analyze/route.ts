@@ -162,6 +162,9 @@ export async function POST(req: NextRequest) {
       ? `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n【比較対象：${comparePlayer}】\n${PLAYER_PROFILES[comparePlayer]}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
       : "";
 
+    const proRoster = Object.entries(PLAYER_PROFILES).map(([name, desc]) => `- ${name}：${desc}`).join("\n");
+    const proSimilaritySection = `\n【プロ選手類似率の判定】\n以下はプロ選手のフォーム特徴一覧。診断対象ショット（${shotCategory ?? "動画から判断したショット"}）の観察結果（observations・テイクバック・打点・面の角度など）に基づき、フォームの特徴が最も近いプロ選手を上位3名選び、類似度を百分率（合計100）で出してください。\n${proRoster}\n【ルール】打っている手の左右・グリップ・テイクバックの深さ・打点位置・フォロースルーの大きさなど、実際に観察できた特徴の近さで判定する。診断対象ショットと全く異なる打ち方の選手（例：スライス診断なのにトップスピン全開の選手だけを並べる等）は避け、観察結果に基づいて妥当な3名を選ぶこと。推測で決めつけず、観察結果と矛盾しない選手を選ぶ。`;
+
     const shotSection = shotCategory
       ? `\n【診断対象ショット】\n✅ ${shotCategory}（${shotType ?? "球種未選択"}）\nこのショットに特化して診断してください。例：フォアハンドストロークのトップスピンなら体幹回転・打点前方・フォロースルー完成度を重点評価。ボレーなら面の安定・足の踏み込み・コンパクトなスイングを重点評価。サーブならトス・トロフィーポジション・プロネーションを重点評価。\n`
       : "\n【診断対象ショット】⚠️ 未選択（動画から判断してください）\n";
@@ -310,6 +313,7 @@ ${volleyKnowledge}
 ${strokeKnowledge}
 ${serveKnowledge}
 ${proKnowledge}
+${proSimilaritySection}
 
 【診断項目】各1〜2文・100文字程度で、専門用語を避けて一般のテニス愛好者にもパッと分かる平易な言葉で簡潔に書いてください。冗長な前置きや言い換えの繰り返しは避け、最も重要な指摘だけに絞ること。
 【重複禁止（重要）】各項目は下記の「担当範囲」だけを書き、他の項目と同じ内容を繰り返さない。同じ指摘（例：テイクバックの引きすぎ、体重移動）は最も関係の深い1項目にだけ書く。
@@ -357,6 +361,9 @@ ${proKnowledge}
   "footwork": "...",
   "injuryCare": "...",
   "progress": "前回との比較（前回データが無ければ空文字）",
+  "proSimilarity": [
+    { "player": "選手名（上記一覧の表記そのまま）", "percent": 0から100の整数 }
+  ],
   "scores": {
     "formScore": 0から100の整数,
     "footworkScore": 0から100の整数,
@@ -410,6 +417,7 @@ ${proKnowledge}
       injuryRisk:    hasPain ? "中" : "低" as string,
     };
     let progress = "";
+    let proSimilarity: { player: string; percent: number }[] = [];
 
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
@@ -421,6 +429,13 @@ ${proKnowledge}
         injuryCare:   parsed.injuryCare   ?? "",
       };
       progress = typeof parsed.progress === "string" ? parsed.progress.trim() : "";
+      if (Array.isArray(parsed.proSimilarity)) {
+        proSimilarity = parsed.proSimilarity
+          .filter((p: any) => p && typeof p.player === "string" && PLAYER_PROFILES[p.player])
+          .map((p: any) => ({ player: p.player, percent: Math.max(0, Math.min(100, Number(p.percent) || 0)) }))
+          .sort((a: any, b: any) => b.percent - a.percent)
+          .slice(0, 3);
+      }
       if (parsed.scores) {
         aiScores = {
           formScore:     Number(parsed.scores.formScore)     || aiScores.formScore,
@@ -456,6 +471,7 @@ ${proKnowledge}
       impactOffset:  aiScores.impactOffset,
       sections,
       progress,
+      proSimilarity,
       comparePlayer,
       shotCategory,
       shotType,

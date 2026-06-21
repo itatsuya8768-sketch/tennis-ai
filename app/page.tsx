@@ -365,9 +365,9 @@ export default function HomePage() {
           <div><div style={{fontWeight:900,fontSize:13,color:"#f5f6f7",lineHeight:1.1}}>TennisAI365Coach</div><div style={{fontSize:9,color:"#3ddc97",fontWeight:700,letterSpacing:"0.1em"}}>FORM ANALYZER</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {!isMobile&&<Link href="/history" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📋 履歴</Link>}
-          {!isMobile&&(isPremium||usage?.plan==="unlimited")&&<Link href="/weekly" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>🗓️ 週次メニュー</Link>}
-          {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📊 統計</Link>}
+          <Link href="/history" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📋{!isMobile&&" 履歴"}</Link>
+          {(isPremium||usage?.plan==="unlimited")&&<Link href="/weekly" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>🗓️{!isMobile&&" 週次メニュー"}</Link>}
+          {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📊{!isMobile&&" 統計"}</Link>}
           <AuthButton/>
         </div>
       </header>
@@ -480,6 +480,24 @@ export default function HomePage() {
             {report.progress && report.progress.trim() && <div style={{background:"linear-gradient(135deg,rgba(78,161,255,0.12),rgba(61,220,151,0.12))",border:"2px solid #93c5fd",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
               <div style={{fontWeight:800,fontSize:14,color:"#4ea1ff",marginBottom:8}}>📈 前回との比較</div>
               <div style={{fontSize:13,color:"#f5f6f7",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{report.progress}</div>
+            </div>}
+
+            {/* プロ選手類似率 */}
+            {report.proSimilarity && report.proSimilarity.length>0 && <div style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
+              <div style={{fontWeight:800,fontSize:14,color:"#f5f6f7",marginBottom:4}}>🎾 プロ選手フォーム類似率</div>
+              <div style={{fontSize:11,color:"#8b8f97",marginBottom:12}}>{shotCategory?`${shotCategory}${shotType?`（${shotType}）`:""}のフォーム特徴をAIが比較`:"フォーム特徴をAIが比較"}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {report.proSimilarity.map((p,i)=>{
+                  const barColor=i===0?"#3ddc97":i===1?"#4ea1ff":"#ffb84e";
+                  return <div key={p.player} style={{display:"flex",flexDirection:"column",gap:5}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,color:"#aeb2b8"}}>
+                      <span>{p.player}</span>
+                      <span style={{color:barColor,fontWeight:800}}>{p.percent}%</span>
+                    </div>
+                    <div style={{height:7,borderRadius:99,background:"#2a2d33"}}><div style={{height:"100%",borderRadius:99,background:barColor,width:`${Math.min(p.percent,100)}%`,transition:"width 1.2s cubic-bezier(0.4,0,0.2,1)"}}/></div>
+                  </div>;
+                })}
+              </div>
             </div>}
 
             {/* スコア詳細（無料） */}

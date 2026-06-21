@@ -26,6 +26,7 @@ export interface AIReport {
     injuryCare: string;
   };
   progress?: string | null;
+  proSimilarity?: { player: string; percent: number }[];
   comparePlayer?: string | null;
   shotCategory?: string | null;
   shotType?: string | null;
