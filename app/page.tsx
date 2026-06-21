@@ -365,9 +365,9 @@ export default function HomePage() {
           <div><div style={{fontWeight:900,fontSize:13,color:"#f5f6f7",lineHeight:1.1}}>TennisAI365Coach</div><div style={{fontSize:9,color:"#3ddc97",fontWeight:700,letterSpacing:"0.1em"}}>FORM ANALYZER</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <Link href="/history" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📋{!isMobile&&" 履歴"}</Link>
-          {(isPremium||usage?.plan==="unlimited")&&<Link href="/weekly" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>🗓️{!isMobile&&" 週次メニュー"}</Link>}
-          {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 10px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24"}}>📊{!isMobile&&" 統計"}</Link>}
+          <Link href="/history" style={{fontSize:isMobile?11:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 8px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24",whiteSpace:"nowrap"}}>📋 履歴</Link>
+          {(isPremium||usage?.plan==="unlimited")&&<Link href="/weekly" style={{fontSize:isMobile?11:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 8px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24",whiteSpace:"nowrap"}}>🗓️ {isMobile?"週次":"週次メニュー"}</Link>}
+          {usage?.plan==="unlimited"&&<Link href="/stats" style={{fontSize:isMobile?11:12,fontWeight:700,color:"#aeb2b8",textDecoration:"none",padding:isMobile?"7px 8px":"7px 14px",borderRadius:8,border:"1px solid #2a2d33",background:"#1c1f24",whiteSpace:"nowrap"}}>📊 統計</Link>}
           <AuthButton/>
         </div>
       </header>
