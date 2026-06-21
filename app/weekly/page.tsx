@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-type MenuItem = { title: string; issue: string; action: string };
+type MenuItem = { title: string; issue: string; drill: string; action: string };
 type WeeklyMenu = { summary: string; menu: MenuItem[] };
 
 export default function WeeklyPage() {
@@ -85,8 +85,12 @@ export default function WeeklyPage() {
                     <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(61,220,151,0.15)", color: "#3ddc97", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "#f5f6f7" }}>{item.title}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: "#8b8f97", marginBottom: 4 }}>課題：{item.issue}</div>
-                  <div style={{ fontSize: 13, color: "#f5f6f7", lineHeight: 1.7 }}>来週の練習：{item.action}</div>
+                  <div style={{ fontSize: 12, color: "#8b8f97", marginBottom: 8 }}>課題：{item.issue}</div>
+                  <div style={{ background: "#14161a", border: "1px solid #2a2d33", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#3ddc97", fontWeight: 700, marginBottom: 4 }}>🎾 練習ドリル</div>
+                    <div style={{ fontSize: 13, color: "#f5f6f7", lineHeight: 1.7 }}>{item.drill}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#8b8f97", lineHeight: 1.7 }}>実戦で意識：{item.action}</div>
                 </div>
               ))}
             </div>
