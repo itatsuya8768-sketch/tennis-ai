@@ -227,9 +227,16 @@ async function extractFrames(videoUrl:string,duration:number,range?:{start:numbe
     const captureAt=(time:number):Promise<string|null>=>{
       return new Promise((res)=>{
         const tid=setTimeout(()=>res(null),4000);
-        video.onseeked=()=>{
+        const draw=()=>{
           clearTimeout(tid);
           try{const c=document.createElement("canvas");c.width=720;c.height=404;const ctx=c.getContext("2d");if(!ctx){res(null);return;}ctx.drawImage(video,0,0,720,404);const b64=c.toDataURL("image/jpeg",0.85).split(",")[1];res(b64&&b64.length>500?b64:null);}catch{res(null);}
+        };
+        video.onseeked=()=>{
+          // seeked直後はデコードが追いついておらず、1つ前のフレームが描画されることがある。
+          // 対応ブラウザでは requestVideoFrameCallback で「実際に表示用に準備できた瞬間」まで待つ。
+          const rvfc=(video as any).requestVideoFrameCallback;
+          if(typeof rvfc==="function"){(video as any).requestVideoFrameCallback(()=>draw());}
+          else{draw();}
         };
         video.currentTime=time;
       });
@@ -254,14 +261,17 @@ async function extractFrames(videoUrl:string,duration:number,range?:{start:numbe
         }
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
         const times:number[]=[];
-        const FRAME_COUNT=16;
-        let start:number,end:number;
+        let start:number,end:number,FRAME_COUNT:number;
         if(range&&range.end>range.start){
           start=Math.max(0,range.start);end=Math.min(dur-0.05,range.end);
           if(end<=start){start=Math.min(0.3,dur*0.05);end=Math.max(start,dur-0.1);}
+          // 動きが活発な区間（通常1〜2秒程度）に絞れている場合は、接触の瞬間を取りこぼさないよう
+          // 約30fps相当の密度でできるだけ細かく抜く（区間が短いほど枚数も少なくなるので暴走しない）。
+          FRAME_COUNT=Math.max(16,Math.min(30,Math.round((end-start)/0.033)));
         }else{
           const scanRange=Math.min(dur,10);
           start=Math.min(0.3,scanRange*0.05);end=Math.max(start,scanRange-0.1);
+          FRAME_COUNT=16;
         }
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}

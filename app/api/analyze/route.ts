@@ -381,7 +381,7 @@ ${compareSection}
 
 以上の情報と、添付した動画フレーム・写真をもとに、システムプロンプトのルール・専門基準・出力フォーマットに従って診断してください。`;
 
-    const contentParts: any[] = frames.slice(0, 16).map((frame) => ({
+    const contentParts: any[] = frames.slice(0, 30).map((frame) => ({
       type: "image",
       source: { type: "base64", media_type: "image/jpeg", data: frame },
     }));
