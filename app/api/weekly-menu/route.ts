@@ -61,7 +61,7 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("week_start", weekStart)
       .maybeSingle();
-    const isFreshFormat = (m: any) => Array.isArray(m?.menu) && m.menu.every((it: any) => typeof it?.drill === "string" && it.drill.trim());
+    const isFreshFormat = (m: any) => Array.isArray(m?.menu) && m.menu.length > 0 && m.menu.every((it: any) => typeof it?.drill === "string" && it.drill.trim());
     if (cached && cached.diagnosis_count === diagnoses.length && isFreshFormat(cached.menu)) {
       return NextResponse.json({ menu: cached.menu, weekStart, diagnosisCount: diagnoses.length, cached: true });
     }
@@ -107,7 +107,7 @@ ${summaries}
 
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
+      max_tokens: 2500,
       temperature: 0.3,
       messages: [{ role: "user", content: prompt }],
     });
@@ -116,17 +116,23 @@ ${summaries}
 
     let menu: any;
     try {
-      menu = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-    } catch {
+      const cleaned = rawText.replace(/```json|```/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      menu = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+      if (!Array.isArray(menu.menu)) throw new Error("menu missing");
+    } catch (e) {
+      console.error("weekly-menu JSON parse failed. raw:", rawText);
       menu = { summary: "今週の診断結果から改善メニューを生成しました。", menu: [] };
     }
 
-    await supabase.from("weekly_menus").upsert({
-      user_id: user.id,
-      week_start: weekStart,
-      menu,
-      diagnosis_count: diagnoses.length,
-    }, { onConflict: "user_id,week_start" });
+    if (menu.menu.length > 0) {
+      await supabase.from("weekly_menus").upsert({
+        user_id: user.id,
+        week_start: weekStart,
+        menu,
+        diagnosis_count: diagnoses.length,
+      }, { onConflict: "user_id,week_start" });
+    }
 
     return NextResponse.json({ menu, weekStart, diagnosisCount: diagnoses.length, cached: false });
   } catch (e: any) {
