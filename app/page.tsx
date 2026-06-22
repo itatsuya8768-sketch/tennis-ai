@@ -270,6 +270,7 @@ export default function HomePage() {
   const [report,setReport]=useState<AIReport|null>(null);
   const [debugFrames,setDebugFrames]=useState<string[]>([]); // AIに送った実際のフレーム（確認用）
   const [debugBestIndex,setDebugBestIndex]=useState<number|null>(null); // ボール検出で選ばれたインデックス
+  const [debugBallStatus,setDebugBallStatus]=useState<string>(""); // ボール検出の状況（画面表示用）
   const [errMsg,setErrMsg]=useState("");
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
   const [isPremium,setIsPremium]=useState(false);
@@ -377,18 +378,27 @@ export default function HomePage() {
     // 実際のボール位置を見るぶん信頼性が高い。検出できなければ何もしない（従来通り）。
     let bestContactFrameIndex:number|null=null;
     if(frames.length>0&&series.length>0&&videoW>0&&videoH>0){
+      setDebugBallStatus("検出中…");
       try{
         const RIGHT=handedness!=="左利き";
         const WRIST=RIGHT?16:15;
         const wristSeries=series.filter(f=>f.pts[WRIST]&&(f.vis[WRIST]??0)>=0.3).map(f=>({time:f.t,x:f.pts[WRIST][0],y:f.pts[WRIST][1],videoW,videoH}));
+        let timedOut=false;
         // モデルのダウンロード等が固まった場合に診断全体が止まらないよう、タイムアウトを設ける。
         bestContactFrameIndex=await Promise.race([
           findClosestBallContactFrame(frames,frameTimes,wristSeries),
-          new Promise<null>(res=>setTimeout(()=>res(null),20000)),
+          new Promise<null>(res=>setTimeout(()=>{timedOut=true;res(null);},20000)),
         ]);
-        console.log("[ball detect] best contact frame index:",bestContactFrameIndex);
+        console.log("[ball detect] best contact frame index:",bestContactFrameIndex,"wristSeries件数",wristSeries.length);
         setDebugBestIndex(bestContactFrameIndex);
-      }catch(e){console.warn("ball detect error",e);}
+        setDebugBallStatus(
+          bestContactFrameIndex!==null ? `成功（${bestContactFrameIndex+1}枚目をインパクト候補として選択）`
+          : timedOut ? "失敗：モデル読み込みがタイムアウトしました（20秒）"
+          : "失敗：いずれの画像にもボールを検出できませんでした"
+        );
+      }catch(e){console.warn("ball detect error",e);setDebugBallStatus(`失敗：エラーが発生しました（${e instanceof Error?e.message:String(e)}）`);}
+    }else{
+      setDebugBallStatus(`スキップ：条件不足（frames=${frames.length}, series=${series.length}, videoW=${videoW}, videoH=${videoH}）`);
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
@@ -519,6 +529,7 @@ export default function HomePage() {
             {/* デバッグ用：AIに実際に送ったフレームを確認できるようにする（一時的） */}
             {debugFrames.length>0&&<details style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
               <summary style={{cursor:"pointer",fontSize:12,fontWeight:700,color:"#aeb2b8"}}>🔍 AIに送ったフレームを確認（{debugFrames.length}枚・デバッグ用）{debugBestIndex!==null&&" ※緑枠＝ボール検出によるインパクト候補"}</summary>
+              {debugBallStatus&&<div style={{fontSize:11,color:"#4ea1ff",marginTop:8}}>ボール検出：{debugBallStatus}</div>}
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
                 {debugFrames.map((f,i)=><img key={i} src={`data:image/jpeg;base64,${f}`} alt={`frame ${i+1}`} style={{width:90,height:51,objectFit:"cover",borderRadius:6,border:i===debugBestIndex?"3px solid #3ddc97":"1px solid #2a2d33"}}/>)}
               </div>
