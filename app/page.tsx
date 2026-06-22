@@ -118,49 +118,6 @@ function analyzeFollowThrough(series: PoseFrame[], handedness: string): FollowTh
   return { verdict, aboveRatio:Math.round(aboveRatio*100)/100, frames:valid.length };
 }
 
-// ── 動きが活発な区間（テイクバック開始〜フォロースルー終了）の検出 ──
-// ボレーのように「振らずに当てる」ショットでは、インパクトの瞬間の手首速度は低く、
-// 「速度最大の瞬間＝インパクト」という推定はショットによって成立しない。
-// そのため特定の瞬間を当てに行くのではなく、手首がほとんど動いていない待機時間を除外し、
-// 実際に動いている区間にフレームを集中させることで、結果的にインパクトの瞬間も
-// 高い時間分解度でカバーする（ショット種別に依存しない安全な改善策）。
-function detectActiveWindow(series: PoseFrame[], handedness: string): { start: number; end: number } | null {
-  const RIGHT = handedness !== "左利き";
-  const WRIST = RIGHT ? 16 : 15;
-  // スプリットステップ（構えの小さなジャンプ）は腕がほぼ動かないまま足だけが動くため、
-  // 手首だけでなく両足首も見て、足だけの動きも「活発な区間」として拾えるようにする。
-  const TRACK_POINTS = [WRIST, 27, 28]; // 利き手首・左足首・右足首
-  type P = { t: number; pts: ([number, number] | null)[] };
-  const valid: P[] = [];
-  for (const f of series) {
-    const v = f.vis, p = f.pts;
-    const pts = TRACK_POINTS.map(i => (p[i] && (v[i] ?? 0) >= 0.3) ? [p[i][0], p[i][1]] as [number, number] : null);
-    if (pts.every(pt => pt === null)) continue;
-    valid.push({ t: f.t, pts });
-  }
-  if (valid.length < 8) return null;
-  const speeds: { t: number; sp: number }[] = [];
-  for (let i = 1; i < valid.length; i++) {
-    const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
-    let best = 0;
-    for (let k = 0; k < TRACK_POINTS.length; k++) {
-      const a = valid[i].pts[k], b = valid[i-1].pts[k];
-      if (!a || !b) continue;
-      const sp = Math.hypot(a[0] - b[0], a[1] - b[1]) / dt;
-      if (sp > best) best = sp;
-    }
-    speeds.push({ t: (valid[i].t + valid[i-1].t) / 2, sp: best });
-  }
-  const maxSp = Math.max(...speeds.map(s => s.sp));
-  if (maxSp <= 0) return null;
-  const active = speeds.filter(s => s.sp >= maxSp * 0.15);
-  if (active.length === 0) return null;
-  // スプリットステップ（準備動作）を取りこぼさないよう、開始側は余裕を持って広めに取る。
-  const start = Math.max(0, active[0].t - 0.6);
-  const end = active[active.length - 1].t + 0.25;
-  return { start, end: Math.max(start + 0.4, end) };
-}
-
 function useWindowWidth() {
   const [w,setW]=useState(1200);
   useEffect(()=>{setW(window.innerWidth);const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
@@ -219,7 +176,7 @@ function SiteBanner() {
   </a>;
 }
 
-async function extractFrames(videoUrl:string,duration:number,range?:{start:number;end:number}):Promise<string[]> {
+async function extractFrames(videoUrl:string,duration:number):Promise<string[]> {
   return new Promise((resolve)=>{
     const video=document.createElement("video");
     video.src=videoUrl;video.muted=true;video.playsInline=true;video.preload="metadata";
@@ -260,19 +217,13 @@ async function extractFrames(videoUrl:string,duration:number,range?:{start:numbe
           });
         }
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
+        // 骨格トラッキングはスイングが速いほど（ブレが大きいほど）信頼度が落ちやすく、
+        // 「動きが活発な区間」の検出がまさに接触の瞬間付近で外れるリスクがあるため、
+        // 区間を絞らず動画全体（最大10秒）をシンプルに高密度で均等抽出する。
         const times:number[]=[];
-        let start:number,end:number,FRAME_COUNT:number;
-        if(range&&range.end>range.start){
-          start=Math.max(0,range.start);end=Math.min(dur-0.05,range.end);
-          if(end<=start){start=Math.min(0.3,dur*0.05);end=Math.max(start,dur-0.1);}
-          // 動きが活発な区間（通常1〜2秒程度）に絞れている場合は、接触の瞬間を取りこぼさないよう
-          // 約30fps相当の密度でできるだけ細かく抜く（区間が短いほど枚数も少なくなるので暴走しない）。
-          FRAME_COUNT=Math.max(16,Math.min(30,Math.round((end-start)/0.033)));
-        }else{
-          const scanRange=Math.min(dur,10);
-          start=Math.min(0.3,scanRange*0.05);end=Math.max(start,scanRange-0.1);
-          FRAME_COUNT=16;
-        }
+        const scanRange=Math.min(dur,10);
+        const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
+        const FRAME_COUNT=Math.max(20,Math.min(30,Math.round(scanRange/0.18)));
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}
         console.log(`フレーム抽出結果: ${results.length}枚`);
@@ -387,7 +338,6 @@ export default function HomePage() {
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
     let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
-    let activeWindow:{start:number;end:number}|null=null;
     if(videoRef.current){
       const v=videoRef.current;
       try{poseRef.current?.clearSeries?.();}catch{}
@@ -407,13 +357,10 @@ export default function HomePage() {
         series=poseRef.current?.getSeries?.()??[];
         takeback=analyzeTakeback(series,handedness);
         followThrough=analyzeFollowThrough(series,handedness);
-        activeWindow=detectActiveWindow(series,handedness);
-        console.log("[takeback]",takeback,"[followThrough]",followThrough,"[activeWindow]",activeWindow,"series",series.length);
+        console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);
       }catch(e:any){console.warn("pose analysis error",e);}
     }
-    // 動きが活発な区間（テイクバック〜フォロースルー）が検出できた場合は、その区間に
-    // フレームを集中させる。検出できなければ動画全体から均等抽出する（従来の挙動）。
-    if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0,activeWindow??undefined);}catch(e){console.warn("extractFrames error",e);}}
+    if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
     setDebugFrames(frames);
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
