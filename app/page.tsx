@@ -387,7 +387,7 @@ export default function HomePage() {
         // モデルのダウンロード等が固まった場合に診断全体が止まらないよう、タイムアウトを設ける。
         bestContactFrameIndex=await Promise.race([
           findClosestBallContactFrame(frames,frameTimes,wristSeries),
-          new Promise<null>(res=>setTimeout(()=>{timedOut=true;res(null);},20000)),
+          new Promise<null>(res=>setTimeout(()=>{timedOut=true;res(null);},35000)),
         ]);
         console.log("[ball detect] best contact frame index:",bestContactFrameIndex,"wristSeries件数",wristSeries.length);
         setDebugBestIndex(bestContactFrameIndex);

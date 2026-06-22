@@ -10,6 +10,10 @@ async function getModel() {
     modelPromise = (async () => {
       const tf = await import("@tensorflow/tfjs");
       const cocoSsd = await import("@tensorflow-models/coco-ssd");
+      // MediaPipe（骨格検出）がWebGLコンテキストを保持し続けているため、TensorFlow.jsも
+      // WebGLバックエンドを使うとGPUコンテキストを取り合い、片方が失われて骨格検出まで
+      // 壊れてしまう。CPUバックエンドに固定してGPUリソースを共有しないようにする。
+      await tf.setBackend("cpu");
       await tf.ready();
       return cocoSsd.load({ base: "lite_mobilenet_v2" });
     })();
@@ -59,11 +63,19 @@ export async function findClosestBallContactFrame(
   wristSeries: WristPoint[]
 ): Promise<number | null> {
   if (frames.length === 0 || wristSeries.length === 0) return null;
-  const balls = await detectBalls(frames);
+  // CPUバックエンド（WebGLを使わない）は1枚あたりの推論が遅いため、枚数が多い場合は
+  // 間引いて検出し、全体としてタイムアウトしにくくする。
+  const MAX_CHECK = 15;
+  const step = Math.max(1, Math.ceil(frames.length / MAX_CHECK));
+  const indices: number[] = [];
+  for (let i = 0; i < frames.length; i += step) indices.push(i);
+  const sampledFrames = indices.map(i => frames[i]);
+  const balls = await detectBalls(sampledFrames);
   let bestIdx: number | null = null;
   let bestDist = Infinity;
-  for (let i = 0; i < frames.length; i++) {
-    const ball = balls[i];
+  for (let s = 0; s < indices.length; s++) {
+    const i = indices[s];
+    const ball = balls[s];
     if (!ball) continue;
     const t = frameTimes[i];
     // 一番時刻が近い手首座標を使う
