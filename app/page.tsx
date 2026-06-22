@@ -230,7 +230,9 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
         resolve(results);
       }catch(e){console.warn("extractFrames:",e);resolve([]);}
     };
-    run();setTimeout(()=>resolve(results),30000);
+    // フレーム数を増やした分、全体の安全タイムアウトも枚数に応じて延ばす
+    // （1枚あたり最大4秒・全枚数を捌くのに必要な時間＋余裕を確保）。
+    run();setTimeout(()=>resolve(results),90000);
   });
 }
 
