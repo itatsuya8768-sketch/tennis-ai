@@ -377,7 +377,8 @@ export default function HomePage() {
     // 「インパクトに最も近い」候補として特定する。骨格の動きだけから推測するより、
     // 実際のボール位置を見るぶん信頼性が高い。検出できなければ何もしない（従来通り）。
     let bestContactFrameIndex:number|null=null;
-    if(frames.length>0&&series.length>0&&videoW>0&&videoH>0){
+    const BALL_DETECT_ENABLED=false; // 一時的に無効化（iOS Chromeでのエラー原因切り分け中）
+    if(BALL_DETECT_ENABLED&&frames.length>0&&series.length>0&&videoW>0&&videoH>0){
       setDebugBallStatus("検出中…");
       try{
         const RIGHT=handedness!=="左利き";
