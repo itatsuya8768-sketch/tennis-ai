@@ -188,7 +188,7 @@ async function extractFrames(videoUrl:string,duration:number):Promise<{frames:st
         const tid=setTimeout(()=>res(null),4000);
         const draw=()=>{
           clearTimeout(tid);
-          try{const c=document.createElement("canvas");c.width=720;c.height=404;const ctx=c.getContext("2d");if(!ctx){res(null);return;}ctx.drawImage(video,0,0,720,404);const b64=c.toDataURL("image/jpeg",0.85).split(",")[1];res(b64&&b64.length>500?b64:null);}catch{res(null);}
+          try{const c=document.createElement("canvas");c.width=560;c.height=315;const ctx=c.getContext("2d");if(!ctx){res(null);return;}ctx.drawImage(video,0,0,560,315);const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];res(b64&&b64.length>500?b64:null);}catch{res(null);}
         };
         let drawn=false;
         const drawOnce=()=>{if(!drawn){drawn=true;draw();}};
@@ -228,7 +228,9 @@ async function extractFrames(videoUrl:string,duration:number):Promise<{frames:st
         const times:number[]=[];
         const scanRange=Math.min(dur,10);
         const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
-        const FRAME_COUNT=Math.max(20,Math.min(30,Math.round(scanRange/0.18)));
+        // 枚数を増やすほどリクエストのペイロードが大きくなり、サーバー側の上限に
+        // 引っかかって失敗するリスクがあるため、上限を抑える（画質も下げて対応）。
+        const FRAME_COUNT=Math.max(14,Math.min(18,Math.round(scanRange/0.3)));
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64){results.push(b64);resultTimes.push(t);}}
         console.log(`フレーム抽出結果: ${results.length}枚`);
@@ -405,6 +407,13 @@ export default function HomePage() {
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,bestContactFrameIndex,grips,comparePlayer,shotCategory,shotType})});
+      // サーバーがJSON以外（サイズ上限超過時のエラーページ等）を返すことがあるため、
+      // res.json() で分かりにくいSyntaxErrorになる前に判定して分かりやすいメッセージにする。
+      const contentType=res.headers.get("content-type")??"";
+      if(!contentType.includes("application/json")){
+        const text=await res.text().catch(()=>"");
+        throw new Error(`サーバーから予期しない応答がありました（ステータス${res.status}）。動画のサイズが大きすぎる可能性があります。動画を短く・軽くして再度お試しください。${text?`\n詳細: ${text.slice(0,200)}`:""}`);
+      }
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){

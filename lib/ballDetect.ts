@@ -32,7 +32,7 @@ function loadImage(base64: string): Promise<HTMLImageElement> {
 
 export interface BallBox { x: number; y: number; w: number; h: number; score: number; }
 
-// frames は720x404のJPEG(base64・data:プレフィックス無し)を想定。
+// frames は560x315のJPEG(base64・data:プレフィックス無し)を想定。
 async function detectBalls(frames: string[]): Promise<(BallBox | null)[]> {
   const model = await getModel();
   const out: (BallBox | null)[] = [];
@@ -85,9 +85,9 @@ export async function findClosestBallContactFrame(
       const d = Math.abs(w.time - t);
       if (d < nd) { nd = d; nearest = w; }
     }
-    // 720x404キャンバス座標 と 元動画解像度座標 をそれぞれ0-1に正規化して比較
-    const ballCx = (ball.x + ball.w / 2) / 720;
-    const ballCy = (ball.y + ball.h / 2) / 404;
+    // 560x315キャンバス座標 と 元動画解像度座標 をそれぞれ0-1に正規化して比較
+    const ballCx = (ball.x + ball.w / 2) / 560;
+    const ballCy = (ball.y + ball.h / 2) / 315;
     const wristX = nearest.x / nearest.videoW;
     const wristY = nearest.y / nearest.videoH;
     const dist = Math.hypot(ballCx - wristX, ballCy - wristY);
