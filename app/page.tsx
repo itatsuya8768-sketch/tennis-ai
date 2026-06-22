@@ -300,6 +300,7 @@ export default function HomePage() {
   const [poseMetrics,setPoseMetrics]=useState<PoseMetrics|null>(null);
   const [status,setStatus]=useState<"idle"|"loading"|"done"|"error">("idle");
   const [report,setReport]=useState<AIReport|null>(null);
+  const [debugFrames,setDebugFrames]=useState<string[]>([]); // AIに送った実際のフレーム（確認用）
   const [errMsg,setErrMsg]=useState("");
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
   const [isPremium,setIsPremium]=useState(false);
@@ -403,6 +404,7 @@ export default function HomePage() {
     // 動きが活発な区間（テイクバック〜フォロースルー）が検出できた場合は、その区間に
     // フレームを集中させる。検出できなければ動画全体から均等抽出する（従来の挙動）。
     if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0,activeWindow??undefined);}catch(e){console.warn("extractFrames error",e);}}
+    setDebugFrames(frames);
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
@@ -529,6 +531,13 @@ export default function HomePage() {
           {status==="error"&&<SectionCard style={{textAlign:"center",padding:"32px 24px"}}><div style={{fontSize:40,marginBottom:12}}>⚠️</div><div style={{fontSize:14,fontWeight:700,color:"#ff6b6b",marginBottom:8}}>診断中にエラーが発生しました</div><div style={{fontSize:12,color:"#aeb2b8",marginBottom:16}}>{errMsg}</div><button onClick={()=>setStatus("idle")} style={{padding:"10px 24px",borderRadius:10,background:"#1c1f24",border:"1px solid #2a2d33",color:"#aeb2b8",fontWeight:700,cursor:"pointer"}}>もう一度試す</button></SectionCard>}
 
           {status==="done"&&report&&<div>
+            {/* デバッグ用：AIに実際に送ったフレームを確認できるようにする（一時的） */}
+            {debugFrames.length>0&&<details style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
+              <summary style={{cursor:"pointer",fontSize:12,fontWeight:700,color:"#aeb2b8"}}>🔍 AIに送ったフレームを確認（{debugFrames.length}枚・デバッグ用）</summary>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
+                {debugFrames.map((f,i)=><img key={i} src={`data:image/jpeg;base64,${f}`} alt={`frame ${i+1}`} style={{width:90,height:51,objectFit:"cover",borderRadius:6,border:"1px solid #2a2d33"}}/>)}
+              </div>
+            </details>}
             {/* KPIバー（無料・Premium共通） */}
             <div style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:20,padding:"20px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
               {[{label:"フォームスコア",value:`${report.formScore}`,unit:"pt",color:"#3ddc97"},{label:"怪我リスク",value:report.injuryRisk,unit:"",color:hasPain?"#ffb84e":"#2bc47f"},{label:"スイング速度",value:`${report.swingSpeed}`,unit:"km/h",color:"#4ea1ff"}].map(k=><div key={k.label} style={{textAlign:"center"}}><div style={{fontSize:isMobile?18:22,fontWeight:900,color:k.color,lineHeight:1}}>{k.value}<span style={{fontSize:10}}>{k.unit}</span></div><div style={{fontSize:9,color:"#8b8f97",marginTop:4}}>{k.label}</div></div>)}
