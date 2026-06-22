@@ -118,65 +118,47 @@ function analyzeFollowThrough(series: PoseFrame[], handedness: string): FollowTh
   return { verdict, aboveRatio:Math.round(aboveRatio*100)/100, frames:valid.length };
 }
 
-// ── インパクト（ボールとラケットが接触する瞬間）の推定時刻 ──
-// 手首の水平移動速度が最大になる瞬間を「インパクト」の代理指標として使う。
-// スイングではインパクト直前にラケットヘッド（≒手首）が最も速くなるため、近似として妥当。
-function detectContactTime(series: PoseFrame[], handedness: string): number | null {
+// ── 動きが活発な区間（テイクバック開始〜フォロースルー終了）の検出 ──
+// ボレーのように「振らずに当てる」ショットでは、インパクトの瞬間の手首速度は低く、
+// 「速度最大の瞬間＝インパクト」という推定はショットによって成立しない。
+// そのため特定の瞬間を当てに行くのではなく、手首がほとんど動いていない待機時間を除外し、
+// 実際に動いている区間にフレームを集中させることで、結果的にインパクトの瞬間も
+// 高い時間分解度でカバーする（ショット種別に依存しない安全な改善策）。
+function detectActiveWindow(series: PoseFrame[], handedness: string): { start: number; end: number } | null {
   const RIGHT = handedness !== "左利き";
   const WRIST = RIGHT ? 16 : 15;
-  type G = { t:number; wx:number };
-  const valid: G[] = [];
+  // スプリットステップ（構えの小さなジャンプ）は腕がほぼ動かないまま足だけが動くため、
+  // 手首だけでなく両足首も見て、足だけの動きも「活発な区間」として拾えるようにする。
+  const TRACK_POINTS = [WRIST, 27, 28]; // 利き手首・左足首・右足首
+  type P = { t: number; pts: ([number, number] | null)[] };
+  const valid: P[] = [];
   for (const f of series) {
     const v = f.vis, p = f.pts;
-    if (!p[WRIST] || (v[WRIST] ?? 0) < 0.35) continue;
-    valid.push({ t: f.t, wx: p[WRIST][0] });
+    const pts = TRACK_POINTS.map(i => (p[i] && (v[i] ?? 0) >= 0.3) ? [p[i][0], p[i][1]] as [number, number] : null);
+    if (pts.every(pt => pt === null)) continue;
+    valid.push({ t: f.t, pts });
   }
-  if (valid.length < 6) return null;
-  let ci = 0, ms = -1;
+  if (valid.length < 8) return null;
+  const speeds: { t: number; sp: number }[] = [];
   for (let i = 1; i < valid.length; i++) {
     const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
-    const sp = Math.abs(valid[i].wx - valid[i-1].wx) / dt;
-    if (sp > ms) { ms = sp; ci = i; }
+    let best = 0;
+    for (let k = 0; k < TRACK_POINTS.length; k++) {
+      const a = valid[i].pts[k], b = valid[i-1].pts[k];
+      if (!a || !b) continue;
+      const sp = Math.hypot(a[0] - b[0], a[1] - b[1]) / dt;
+      if (sp > best) best = sp;
+    }
+    speeds.push({ t: (valid[i].t + valid[i-1].t) / 2, sp: best });
   }
-  return valid[ci].t;
-}
-
-// インパクト推定時刻の前後を狙って数枚だけ追加でキャプチャする（既存の均等抽出フレームだと
-// ちょうど接触の瞬間を外しやすいため、ピンポイントで補強する）。
-async function captureFramesAt(videoUrl: string, times: number[]): Promise<string[]> {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.src = videoUrl; video.muted = true; video.playsInline = true; video.preload = "metadata";
-    const results: string[] = [];
-    const captureAt = (time: number): Promise<string | null> => {
-      return new Promise((res) => {
-        const tid = setTimeout(() => res(null), 4000);
-        video.onseeked = () => {
-          clearTimeout(tid);
-          try {
-            const c = document.createElement("canvas"); c.width = 720; c.height = 404;
-            const ctx = c.getContext("2d"); if (!ctx) { res(null); return; }
-            ctx.drawImage(video, 0, 0, 720, 404);
-            const b64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
-            res(b64 && b64.length > 500 ? b64 : null);
-          } catch { res(null); }
-        };
-        video.currentTime = Math.max(0, time);
-      });
-    };
-    const run = async () => {
-      try {
-        await new Promise<void>((res, rej) => {
-          const tid = setTimeout(() => rej(new Error("timeout")), 12000);
-          video.onloadedmetadata = () => { clearTimeout(tid); res(); };
-          video.onerror = () => { clearTimeout(tid); rej(new Error("error")); };
-        });
-        for (const t of times) { const b64 = await captureAt(t); if (b64) results.push(b64); }
-        resolve(results);
-      } catch (e) { console.warn("captureFramesAt:", e); resolve(results); }
-    };
-    run(); setTimeout(() => resolve(results), 15000);
-  });
+  const maxSp = Math.max(...speeds.map(s => s.sp));
+  if (maxSp <= 0) return null;
+  const active = speeds.filter(s => s.sp >= maxSp * 0.15);
+  if (active.length === 0) return null;
+  // スプリットステップ（準備動作）を取りこぼさないよう、開始側は余裕を持って広めに取る。
+  const start = Math.max(0, active[0].t - 0.6);
+  const end = active[active.length - 1].t + 0.25;
+  return { start, end: Math.max(start + 0.4, end) };
 }
 
 function useWindowWidth() {
@@ -237,7 +219,7 @@ function SiteBanner() {
   </a>;
 }
 
-async function extractFrames(videoUrl:string,duration:number):Promise<string[]> {
+async function extractFrames(videoUrl:string,duration:number,range?:{start:number;end:number}):Promise<string[]> {
   return new Promise((resolve)=>{
     const video=document.createElement("video");
     video.src=videoUrl;video.muted=true;video.playsInline=true;video.preload="metadata";
@@ -271,9 +253,16 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
           });
         }
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
-        const scanRange=Math.min(dur,10);const times:number[]=[];
+        const times:number[]=[];
         const FRAME_COUNT=16;
-        const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
+        let start:number,end:number;
+        if(range&&range.end>range.start){
+          start=Math.max(0,range.start);end=Math.min(dur-0.05,range.end);
+          if(end<=start){start=Math.min(0.3,dur*0.05);end=Math.max(start,dur-0.1);}
+        }else{
+          const scanRange=Math.min(dur,10);
+          start=Math.min(0.3,scanRange*0.05);end=Math.max(start,scanRange-0.1);
+        }
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}
         console.log(`フレーム抽出結果: ${results.length}枚`);
@@ -386,8 +375,8 @@ export default function HomePage() {
   const handleStart=async()=>{
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
-    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;let impactFrames:string[]=[];
-    if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
+    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
+    let activeWindow:{start:number;end:number}|null=null;
     if(videoRef.current){
       const v=videoRef.current;
       try{poseRef.current?.clearSeries?.();}catch{}
@@ -403,28 +392,21 @@ export default function HomePage() {
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
       let series:PoseFrame[]=[];
-      try{series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);followThrough=analyzeFollowThrough(series,handedness);console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);}catch(e:any){console.warn("pose analysis error",e);}
-      // 均等抽出の12枚だと「ボールとラケットが接触する瞬間」をちょうど外しやすいため、
-      // 手首の速度が最大になる瞬間（インパクト近似）の前後を狙って数枚を追加で抽出する。
-      // ※ボレーは「振る」のではなく「面を作って当てる」ショットのため、インパクト時の
-      //   手首速度はむしろ低く、ピーク速度＝テイクバックや押し出しの動きである可能性が高い。
-      //   そのためこの速度ベースの推定はストローク・サーブにのみ適用し、ボレーでは行わない。
-      const isVolleyForImpact=!!shotCategory&&shotCategory.includes("ボレー");
-      if(videoUrl&&series.length>0&&!isVolleyForImpact){
-        try{
-          const contactTime=detectContactTime(series,handedness);
-          if(contactTime!==null){
-            const offsets=[-0.08,-0.04,0,0.04,0.08];
-            const extraTimes=offsets.map(o=>Math.max(0,Math.min(dur-0.02,contactTime+o)));
-            impactFrames=await captureFramesAt(videoUrl,extraTimes);
-          }
-        }catch(e){console.warn("impact frame capture error",e);}
-      }
+      try{
+        series=poseRef.current?.getSeries?.()??[];
+        takeback=analyzeTakeback(series,handedness);
+        followThrough=analyzeFollowThrough(series,handedness);
+        activeWindow=detectActiveWindow(series,handedness);
+        console.log("[takeback]",takeback,"[followThrough]",followThrough,"[activeWindow]",activeWindow,"series",series.length);
+      }catch(e:any){console.warn("pose analysis error",e);}
     }
+    // 動きが活発な区間（テイクバック〜フォロースルー）が検出できた場合は、その区間に
+    // フレームを集中させる。検出できなければ動画全体から均等抽出する（従来の挙動）。
+    if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0,activeWindow??undefined);}catch(e){console.warn("extractFrames error",e);}}
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,impactFrames,grips,comparePlayer,shotCategory,shotType})});
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
