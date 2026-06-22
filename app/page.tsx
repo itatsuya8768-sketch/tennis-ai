@@ -406,7 +406,11 @@ export default function HomePage() {
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,bestContactFrameIndex,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
-    }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
+    }catch(e:any){
+      const detail=`${e?.name??"Error"}: ${e?.message??String(e)}${e?.stack?`\n${String(e.stack).split("\n").slice(0,4).join("\n")}`:""}`;
+      console.error("handleStart error:",e);
+      setErrMsg(detail);setStatus("error");
+    }
   };
 
   const goPremium=()=>{window.location.href="/premium";};
@@ -523,7 +527,7 @@ export default function HomePage() {
 
           {status==="loading"&&<><LoadingOverlay hasFrames={hasFrames} showAd={!isPremium&&usage?.plan!=="unlimited"}/><SiteBanner/></>}
 
-          {status==="error"&&<SectionCard style={{textAlign:"center",padding:"32px 24px"}}><div style={{fontSize:40,marginBottom:12}}>⚠️</div><div style={{fontSize:14,fontWeight:700,color:"#ff6b6b",marginBottom:8}}>診断中にエラーが発生しました</div><div style={{fontSize:12,color:"#aeb2b8",marginBottom:16}}>{errMsg}</div><button onClick={()=>setStatus("idle")} style={{padding:"10px 24px",borderRadius:10,background:"#1c1f24",border:"1px solid #2a2d33",color:"#aeb2b8",fontWeight:700,cursor:"pointer"}}>もう一度試す</button></SectionCard>}
+          {status==="error"&&<SectionCard style={{textAlign:"center",padding:"32px 24px"}}><div style={{fontSize:40,marginBottom:12}}>⚠️</div><div style={{fontSize:14,fontWeight:700,color:"#ff6b6b",marginBottom:8}}>診断中にエラーが発生しました</div><div style={{fontSize:11,color:"#aeb2b8",marginBottom:16,whiteSpace:"pre-wrap",textAlign:"left",fontFamily:"monospace",background:"#14161a",borderRadius:8,padding:"10px 12px",overflowX:"auto"}}>{errMsg}</div><button onClick={()=>setStatus("idle")} style={{padding:"10px 24px",borderRadius:10,background:"#1c1f24",border:"1px solid #2a2d33",color:"#aeb2b8",fontWeight:700,cursor:"pointer"}}>もう一度試す</button></SectionCard>}
 
           {status==="done"&&report&&<div>
             {/* デバッグ用：AIに実際に送ったフレームを確認できるようにする（一時的） */}
