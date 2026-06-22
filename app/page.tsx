@@ -8,6 +8,7 @@ import ReportCard from "@/components/ReportCard";
 import AdSlot from "@/components/AdSlot";
 import type { PlayerProfile, AIReport } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { findClosestBallContactFrame } from "@/lib/ballDetect";
 
 const PAIN_AREAS = ["右肩","左肩","右肘（テニス肘）","左肘","右手首","左手首","腰（腰痛）","右膝","左膝","右足首","左足首"];
 const PAIN_LEVEL_LABELS = ["","軽い違和感","やや痛む","かなり痛む","激しい痛み"];
@@ -176,11 +177,12 @@ function SiteBanner() {
   </a>;
 }
 
-async function extractFrames(videoUrl:string,duration:number):Promise<string[]> {
+async function extractFrames(videoUrl:string,duration:number):Promise<{frames:string[];times:number[]}> {
   return new Promise((resolve)=>{
     const video=document.createElement("video");
     video.src=videoUrl;video.muted=true;video.playsInline=true;video.preload="metadata";
     const results:string[]=[];
+    const resultTimes:number[]=[];
     const captureAt=(time:number):Promise<string|null>=>{
       return new Promise((res)=>{
         const tid=setTimeout(()=>res(null),4000);
@@ -188,12 +190,15 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
           clearTimeout(tid);
           try{const c=document.createElement("canvas");c.width=720;c.height=404;const ctx=c.getContext("2d");if(!ctx){res(null);return;}ctx.drawImage(video,0,0,720,404);const b64=c.toDataURL("image/jpeg",0.85).split(",")[1];res(b64&&b64.length>500?b64:null);}catch{res(null);}
         };
+        let drawn=false;
+        const drawOnce=()=>{if(!drawn){drawn=true;draw();}};
         video.onseeked=()=>{
           // seeked直後はデコードが追いついておらず、1つ前のフレームが描画されることがある。
-          // 対応ブラウザでは requestVideoFrameCallback で「実際に表示用に準備できた瞬間」まで待つ。
+          // 対応ブラウザでは requestVideoFrameCallback で「実際に表示用に準備できた瞬間」まで待つが、
+          // シーク後に発火しない実装もあるため、短いフォールバックで必ず描画を確定させる。
           const rvfc=(video as any).requestVideoFrameCallback;
-          if(typeof rvfc==="function"){(video as any).requestVideoFrameCallback(()=>draw());}
-          else{draw();}
+          if(typeof rvfc==="function"){(video as any).requestVideoFrameCallback(drawOnce);}
+          setTimeout(drawOnce,150);
         };
         video.currentTime=time;
       });
@@ -216,7 +221,7 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
             try{video.currentTime=1e7;}catch{clearTimeout(to);res(0);}
           });
         }
-        if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
+        if(!dur||!isFinite(dur)||dur<0.1){resolve({frames:[],times:[]});return;}
         // 骨格トラッキングはスイングが速いほど（ブレが大きいほど）信頼度が落ちやすく、
         // 「動きが活発な区間」の検出がまさに接触の瞬間付近で外れるリスクがあるため、
         // 区間を絞らず動画全体（最大10秒）をシンプルに高密度で均等抽出する。
@@ -225,14 +230,14 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
         const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
         const FRAME_COUNT=Math.max(20,Math.min(30,Math.round(scanRange/0.18)));
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
-        for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}
+        for(const t of times){const b64=await captureAt(t);if(b64){results.push(b64);resultTimes.push(t);}}
         console.log(`フレーム抽出結果: ${results.length}枚`);
-        resolve(results);
-      }catch(e){console.warn("extractFrames:",e);resolve([]);}
+        resolve({frames:results,times:resultTimes});
+      }catch(e){console.warn("extractFrames:",e);resolve({frames:[],times:[]});}
     };
     // フレーム数を増やした分、全体の安全タイムアウトも枚数に応じて延ばす
     // （1枚あたり最大4秒・全枚数を捌くのに必要な時間＋余裕を確保）。
-    run();setTimeout(()=>resolve(results),90000);
+    run();setTimeout(()=>resolve({frames:results,times:resultTimes}),90000);
   });
 }
 
@@ -264,6 +269,7 @@ export default function HomePage() {
   const [status,setStatus]=useState<"idle"|"loading"|"done"|"error">("idle");
   const [report,setReport]=useState<AIReport|null>(null);
   const [debugFrames,setDebugFrames]=useState<string[]>([]); // AIに送った実際のフレーム（確認用）
+  const [debugBestIndex,setDebugBestIndex]=useState<number|null>(null); // ボール検出で選ばれたインデックス
   const [errMsg,setErrMsg]=useState("");
   const [activeTab,setActiveTab]=useState<"input"|"result">("input");
   const [isPremium,setIsPremium]=useState(false);
@@ -340,8 +346,10 @@ export default function HomePage() {
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
     let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
+    let series:PoseFrame[]=[];let videoW=0,videoH=0;
     if(videoRef.current){
       const v=videoRef.current;
+      videoW=v.videoWidth;videoH=v.videoHeight;
       try{poseRef.current?.clearSeries?.();}catch{}
       try{v.pause();v.muted=true;}catch{}
       setPoseActive(true); // モデル先読み＆オーバーレイ表示
@@ -354,7 +362,6 @@ export default function HomePage() {
       try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      let series:PoseFrame[]=[];
       try{
         series=poseRef.current?.getSeries?.()??[];
         takeback=analyzeTakeback(series,handedness);
@@ -362,12 +369,31 @@ export default function HomePage() {
         console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);
       }catch(e:any){console.warn("pose analysis error",e);}
     }
-    if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
-    setDebugFrames(frames);
+    let frameTimes:number[]=[];
+    if(videoUrl){try{const ex=await extractFrames(videoUrl,videoDuration??0);frames=ex.frames;frameTimes=ex.times;}catch(e){console.warn("extractFrames error",e);}}
+    setDebugFrames(frames);setDebugBestIndex(null);
+    // ボール（テニスボール）を検出し、手首の位置と画像内で最も近づいたフレームを
+    // 「インパクトに最も近い」候補として特定する。骨格の動きだけから推測するより、
+    // 実際のボール位置を見るぶん信頼性が高い。検出できなければ何もしない（従来通り）。
+    let bestContactFrameIndex:number|null=null;
+    if(frames.length>0&&series.length>0&&videoW>0&&videoH>0){
+      try{
+        const RIGHT=handedness!=="左利き";
+        const WRIST=RIGHT?16:15;
+        const wristSeries=series.filter(f=>f.pts[WRIST]&&(f.vis[WRIST]??0)>=0.3).map(f=>({time:f.t,x:f.pts[WRIST][0],y:f.pts[WRIST][1],videoW,videoH}));
+        // モデルのダウンロード等が固まった場合に診断全体が止まらないよう、タイムアウトを設ける。
+        bestContactFrameIndex=await Promise.race([
+          findClosestBallContactFrame(frames,frameTimes,wristSeries),
+          new Promise<null>(res=>setTimeout(()=>res(null),20000)),
+        ]);
+        console.log("[ball detect] best contact frame index:",bestContactFrameIndex);
+        setDebugBestIndex(bestContactFrameIndex);
+      }catch(e){console.warn("ball detect error",e);}
+    }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,grips,comparePlayer,shotCategory,shotType})});
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,bestContactFrameIndex,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
@@ -492,9 +518,9 @@ export default function HomePage() {
           {status==="done"&&report&&<div>
             {/* デバッグ用：AIに実際に送ったフレームを確認できるようにする（一時的） */}
             {debugFrames.length>0&&<details style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
-              <summary style={{cursor:"pointer",fontSize:12,fontWeight:700,color:"#aeb2b8"}}>🔍 AIに送ったフレームを確認（{debugFrames.length}枚・デバッグ用）</summary>
+              <summary style={{cursor:"pointer",fontSize:12,fontWeight:700,color:"#aeb2b8"}}>🔍 AIに送ったフレームを確認（{debugFrames.length}枚・デバッグ用）{debugBestIndex!==null&&" ※緑枠＝ボール検出によるインパクト候補"}</summary>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
-                {debugFrames.map((f,i)=><img key={i} src={`data:image/jpeg;base64,${f}`} alt={`frame ${i+1}`} style={{width:90,height:51,objectFit:"cover",borderRadius:6,border:"1px solid #2a2d33"}}/>)}
+                {debugFrames.map((f,i)=><img key={i} src={`data:image/jpeg;base64,${f}`} alt={`frame ${i+1}`} style={{width:90,height:51,objectFit:"cover",borderRadius:6,border:i===debugBestIndex?"3px solid #3ddc97":"1px solid #2a2d33"}}/>)}
               </div>
             </details>}
             {/* KPIバー（無料・Premium共通） */}

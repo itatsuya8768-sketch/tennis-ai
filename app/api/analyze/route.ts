@@ -311,6 +311,15 @@ export async function POST(req: NextRequest) {
     const frames: string[] = Array.isArray(body.frames)
       ? body.frames.filter((f: unknown) => typeof f === "string" && f.length > 100)
       : [];
+    // ブラウザ側でテニスボールを検出し、手首の位置と画像内で最も近づいたフレームのインデックス。
+    // 骨格の動きだけから推測するより、実際のボール位置に基づくぶん信頼性が高い。
+    const bestContactFrameIndex: number | null =
+      typeof body.bestContactFrameIndex === "number" &&
+      Number.isInteger(body.bestContactFrameIndex) &&
+      body.bestContactFrameIndex >= 0 &&
+      body.bestContactFrameIndex < frames.length
+        ? body.bestContactFrameIndex
+        : null;
     const grips: { label: string; data: string }[] = Array.isArray(body.grips)
       ? body.grips.filter((g: any) => g && typeof g.data === "string" && g.data.length > 100)
       : [];
@@ -381,10 +390,21 @@ ${compareSection}
 
 以上の情報と、添付した動画フレーム・写真をもとに、システムプロンプトのルール・専門基準・出力フォーマットに従って診断してください。`;
 
-    const contentParts: any[] = frames.slice(0, 30).map((frame) => ({
+    const contentParts: any[] = [];
+    if (bestContactFrameIndex !== null) {
+      contentParts.push({
+        type: "text",
+        text: "次の画像は、テニスボールの検出位置と手首の位置が画像内で最も近づいたフレームです（ボール検出による推定であり、骨格の動きだけからの推測より信頼性が高い）。打点の位置・高さ・前後、ラケット面の向き、振り遅れ／振り急ぎの判定は、必ずこの画像を最優先の根拠としてください。",
+      });
+      contentParts.push({
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: frames[bestContactFrameIndex] },
+      });
+    }
+    contentParts.push(...frames.slice(0, 30).map((frame) => ({
       type: "image",
       source: { type: "base64", media_type: "image/jpeg", data: frame },
-    }));
+    })));
     if (grips.length > 0) {
       contentParts.push({ type: "text", text: `以下はグリップ（握り方）の写真です。順番に：${grips.map((g) => g.label).join("、")}` });
       for (const g of grips.slice(0, 7)) {
