@@ -394,7 +394,7 @@ ${proSimilaritySection}
 
     const message = await anthropic.messages.create({
       model,
-      max_tokens: 3000,
+      max_tokens: 4096,
       temperature: 0, // 出力のブレを最小化（同じ動画なら毎回ほぼ同じスコアにする）
       messages: [{ role: "user", content: messageContent }],
     });
@@ -421,7 +421,8 @@ ${proSimilaritySection}
 
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : clean);
       sections = {
         formAnalysis: parsed.formAnalysis ?? "",
         impactCheck:  parsed.impactCheck  ?? "",
@@ -449,7 +450,8 @@ ${proSimilaritySection}
       if (aiScores.impactOffset >= 20 && aiScores.injuryRisk === "低") {
         aiScores.injuryRisk = "中";
       }
-    } catch {
+    } catch (e) {
+      console.error("analyze JSON parse failed. raw:", rawText);
       sections = {
         formAnalysis: rawText,
         impactCheck:  "解析完了。",
