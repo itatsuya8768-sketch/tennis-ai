@@ -272,7 +272,7 @@ async function extractFrames(videoUrl:string,duration:number):Promise<string[]> 
         }
         if(!dur||!isFinite(dur)||dur<0.1){resolve([]);return;}
         const scanRange=Math.min(dur,10);const times:number[]=[];
-        const FRAME_COUNT=12;
+        const FRAME_COUNT=16;
         const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64)results.push(b64);}
@@ -406,7 +406,11 @@ export default function HomePage() {
       try{series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);followThrough=analyzeFollowThrough(series,handedness);console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);}catch(e:any){console.warn("pose analysis error",e);}
       // 均等抽出の12枚だと「ボールとラケットが接触する瞬間」をちょうど外しやすいため、
       // 手首の速度が最大になる瞬間（インパクト近似）の前後を狙って数枚を追加で抽出する。
-      if(videoUrl&&series.length>0){
+      // ※ボレーは「振る」のではなく「面を作って当てる」ショットのため、インパクト時の
+      //   手首速度はむしろ低く、ピーク速度＝テイクバックや押し出しの動きである可能性が高い。
+      //   そのためこの速度ベースの推定はストローク・サーブにのみ適用し、ボレーでは行わない。
+      const isVolleyForImpact=!!shotCategory&&shotCategory.includes("ボレー");
+      if(videoUrl&&series.length>0&&!isVolleyForImpact){
         try{
           const contactTime=detectContactTime(series,handedness);
           if(contactTime!==null){
