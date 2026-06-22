@@ -118,6 +118,67 @@ function analyzeFollowThrough(series: PoseFrame[], handedness: string): FollowTh
   return { verdict, aboveRatio:Math.round(aboveRatio*100)/100, frames:valid.length };
 }
 
+// ── インパクト（ボールとラケットが接触する瞬間）の推定時刻 ──
+// 手首の水平移動速度が最大になる瞬間を「インパクト」の代理指標として使う。
+// スイングではインパクト直前にラケットヘッド（≒手首）が最も速くなるため、近似として妥当。
+function detectContactTime(series: PoseFrame[], handedness: string): number | null {
+  const RIGHT = handedness !== "左利き";
+  const WRIST = RIGHT ? 16 : 15;
+  type G = { t:number; wx:number };
+  const valid: G[] = [];
+  for (const f of series) {
+    const v = f.vis, p = f.pts;
+    if (!p[WRIST] || (v[WRIST] ?? 0) < 0.35) continue;
+    valid.push({ t: f.t, wx: p[WRIST][0] });
+  }
+  if (valid.length < 6) return null;
+  let ci = 0, ms = -1;
+  for (let i = 1; i < valid.length; i++) {
+    const dt = Math.max(0.001, valid[i].t - valid[i-1].t);
+    const sp = Math.abs(valid[i].wx - valid[i-1].wx) / dt;
+    if (sp > ms) { ms = sp; ci = i; }
+  }
+  return valid[ci].t;
+}
+
+// インパクト推定時刻の前後を狙って数枚だけ追加でキャプチャする（既存の均等抽出フレームだと
+// ちょうど接触の瞬間を外しやすいため、ピンポイントで補強する）。
+async function captureFramesAt(videoUrl: string, times: number[]): Promise<string[]> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.src = videoUrl; video.muted = true; video.playsInline = true; video.preload = "metadata";
+    const results: string[] = [];
+    const captureAt = (time: number): Promise<string | null> => {
+      return new Promise((res) => {
+        const tid = setTimeout(() => res(null), 4000);
+        video.onseeked = () => {
+          clearTimeout(tid);
+          try {
+            const c = document.createElement("canvas"); c.width = 720; c.height = 404;
+            const ctx = c.getContext("2d"); if (!ctx) { res(null); return; }
+            ctx.drawImage(video, 0, 0, 720, 404);
+            const b64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
+            res(b64 && b64.length > 500 ? b64 : null);
+          } catch { res(null); }
+        };
+        video.currentTime = Math.max(0, time);
+      });
+    };
+    const run = async () => {
+      try {
+        await new Promise<void>((res, rej) => {
+          const tid = setTimeout(() => rej(new Error("timeout")), 12000);
+          video.onloadedmetadata = () => { clearTimeout(tid); res(); };
+          video.onerror = () => { clearTimeout(tid); rej(new Error("error")); };
+        });
+        for (const t of times) { const b64 = await captureAt(t); if (b64) results.push(b64); }
+        resolve(results);
+      } catch (e) { console.warn("captureFramesAt:", e); resolve(results); }
+    };
+    run(); setTimeout(() => resolve(results), 15000);
+  });
+}
+
 function useWindowWidth() {
   const [w,setW]=useState(1200);
   useEffect(()=>{setW(window.innerWidth);const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
@@ -325,7 +386,7 @@ export default function HomePage() {
   const handleStart=async()=>{
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
-    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
+    let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;let impactFrames:string[]=[];
     if(videoUrl){try{frames=await extractFrames(videoUrl,videoDuration??0);}catch(e){console.warn("extractFrames error",e);}}
     if(videoRef.current){
       const v=videoRef.current;
@@ -341,12 +402,25 @@ export default function HomePage() {
       try{v.currentTime=0;}catch{}
       setPoseActive(false);
       metrics=poseRef.current?.getLatestMetrics()??null;setPoseMetrics(metrics);
-      try{const series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);followThrough=analyzeFollowThrough(series,handedness);console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);}catch(e:any){console.warn("pose analysis error",e);}
+      let series:PoseFrame[]=[];
+      try{series=poseRef.current?.getSeries?.()??[];takeback=analyzeTakeback(series,handedness);followThrough=analyzeFollowThrough(series,handedness);console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);}catch(e:any){console.warn("pose analysis error",e);}
+      // 均等抽出の12枚だと「ボールとラケットが接触する瞬間」をちょうど外しやすいため、
+      // 手首の速度が最大になる瞬間（インパクト近似）の前後を狙って数枚を追加で抽出する。
+      if(videoUrl&&series.length>0){
+        try{
+          const contactTime=detectContactTime(series,handedness);
+          if(contactTime!==null){
+            const offsets=[-0.08,-0.04,0,0.04,0.08];
+            const extraTimes=offsets.map(o=>Math.max(0,Math.min(dur-0.02,contactTime+o)));
+            impactFrames=await captureFramesAt(videoUrl,extraTimes);
+          }
+        }catch(e){console.warn("impact frame capture error",e);}
+      }
     }
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,grips,comparePlayer,shotCategory,shotType})});
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,impactFrames,grips,comparePlayer,shotCategory,shotType})});
       if(!res.ok){const d=await res.json();throw new Error(d.error??"診断に失敗しました");}
       const d=await res.json();setReport(d.report);setStatus("done");fetchUsage();
     }catch(e:any){setErrMsg(e.message??"エラーが発生しました");setStatus("error");}
