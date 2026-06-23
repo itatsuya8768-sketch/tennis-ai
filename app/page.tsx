@@ -177,10 +177,12 @@ function SiteBanner() {
   </a>;
 }
 
-async function extractFrames(videoUrl:string,duration:number):Promise<{frames:string[];times:number[]}> {
+// 画面に表示している動画要素（videoRef.current）をそのまま使ってフレームを抜く。
+// 以前は別の<video>要素を新規生成してURLを読み込み直していたが、同じ動画を二重に
+// デコードする負荷がかかり、低スペック端末で頻繁に失敗（フレーム0枚）していた。
+// 既にロード済み・再生確認済みの要素を再利用することで読み込み自体の失敗を避ける。
+async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];times:number[]}> {
   return new Promise((resolve)=>{
-    const video=document.createElement("video");
-    video.src=videoUrl;video.muted=true;video.playsInline=true;video.preload="metadata";
     const results:string[]=[];
     const resultTimes:number[]=[];
     const captureAt=(time:number):Promise<string|null>=>{
@@ -203,24 +205,10 @@ async function extractFrames(videoUrl:string,duration:number):Promise<{frames:st
         video.currentTime=time;
       });
     };
+    const originalTime=video.currentTime;
     const run=async()=>{
       try{
-        await new Promise<void>((res,rej)=>{const tid=setTimeout(()=>rej(new Error("timeout")),12000);video.onloadedmetadata=()=>{clearTimeout(tid);res();};video.onerror=()=>{clearTimeout(tid);rej(new Error("error"));};});
-        let dur=video.duration;
-        if(!isFinite(dur)||dur<=0){
-          // 一部のMOV/MP4は duration が Infinity になる → 強制シークで実測
-          dur=await new Promise<number>((res)=>{
-            const to=setTimeout(()=>res(0),3000);
-            const onDur=()=>{
-              if(isFinite(video.duration)&&video.duration>0){
-                clearTimeout(to);video.removeEventListener("durationchange",onDur);
-                video.currentTime=0;res(video.duration);
-              }
-            };
-            video.addEventListener("durationchange",onDur);
-            try{video.currentTime=1e7;}catch{clearTimeout(to);res(0);}
-          });
-        }
+        const dur=video.duration;
         if(!dur||!isFinite(dur)||dur<0.1){resolve({frames:[],times:[]});return;}
         // 骨格トラッキングはスイングが速いほど（ブレが大きいほど）信頼度が落ちやすく、
         // 「動きが活発な区間」の検出がまさに接触の瞬間付近で外れるリスクがあるため、
@@ -234,12 +222,17 @@ async function extractFrames(videoUrl:string,duration:number):Promise<{frames:st
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64){results.push(b64);resultTimes.push(t);}}
         console.log(`フレーム抽出結果: ${results.length}枚`);
+        try{video.currentTime=originalTime;}catch{}
         resolve({frames:results,times:resultTimes});
-      }catch(e){console.warn("extractFrames:",e);resolve({frames:[],times:[]});}
+      }catch(e){
+        console.warn("extractFrames:",e);
+        try{video.currentTime=originalTime;}catch{}
+        resolve({frames:[],times:[]});
+      }
     };
     // フレーム数を増やした分、全体の安全タイムアウトも枚数に応じて延ばす
     // （1枚あたり最大4秒・全枚数を捌くのに必要な時間＋余裕を確保）。
-    run();setTimeout(()=>resolve({frames:results,times:resultTimes}),90000);
+    run();setTimeout(()=>{try{video.currentTime=originalTime;}catch{};resolve({frames:results,times:resultTimes});},90000);
   });
 }
 
@@ -372,7 +365,7 @@ export default function HomePage() {
       }catch(e:any){console.warn("pose analysis error",e);}
     }
     let frameTimes:number[]=[];
-    if(videoUrl){try{const ex=await extractFrames(videoUrl,videoDuration??0);frames=ex.frames;frameTimes=ex.times;}catch(e){console.warn("extractFrames error",e);}}
+    if(videoRef.current){try{const ex=await extractFrames(videoRef.current);frames=ex.frames;frameTimes=ex.times;}catch(e){console.warn("extractFrames error",e);}}
     setDebugFrames(frames);setDebugBestIndex(null);
     // ── インパクト検出パイプライン（動画→インパクト検出→打点位置推定） ──
     // 既存の「ボール×手首の最近接フレーム」方式から、person/ball/racketを実フレームレートで
@@ -409,6 +402,12 @@ export default function HomePage() {
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
       const sendFrames=impactWindowFrames.length>0?impactWindowFrames:frames;
+      // 動画フレームを1枚も抽出できていない状態で送ると、グリップ写真だけ・前回の診断内容
+      // （前回比較の文脈）を流用して「分析できているように見える」結果をAIが返してしまい、
+      // ユーザーが気づけない。動画フレームが無い場合はグリップ写真の有無に関わらず止める。
+      if(sendFrames.length===0){
+        throw new Error("動画フレームを取得できませんでした。お手数ですが、動画を選び直して再度お試しください（うまくいかない場合は、別の動画や短い動画でお試しください）。");
+      }
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames:sendFrames,bestContactFrameIndex,impactMetrics,grips,comparePlayer,shotCategory,shotType})});
       // サーバーがJSON以外（サイズ上限超過時のエラーページ等）を返すことがあるため、
       // res.json() で分かりにくいSyntaxErrorになる前に判定して分かりやすいメッセージにする。
