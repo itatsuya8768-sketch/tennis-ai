@@ -324,6 +324,12 @@ export async function POST(req: NextRequest) {
       ? body.grips.filter((g: any) => g && typeof g.data === "string" && g.data.length > 100)
       : [];
 
+    // ブラウザ側で計算した、インパクト時の打点の高さ・前後位置（胴体長基準の相対値）。
+    // 真横動画にはスケール基準（既知の長さの物体）が無く絶対cmは出せないため、
+    // 「胴体に対する比率」として渡し、診断文では定量的だが正直な表現にする。
+    const impactMetrics: { heightRatio: number | null; depthRatio: number | null; elbowAngleDeg: number | null } | null =
+      body.impactMetrics && typeof body.impactMetrics === "object" ? body.impactMetrics : null;
+
     const hasPain = profile.painAreas.length > 0;
 
     const painDesc = hasPain
@@ -335,6 +341,17 @@ export async function POST(req: NextRequest) {
     const poseDesc = poseMetrics
       ? `【骨格解析実測値】右肘:${poseMetrics.rightElbowAngle}° 左肘:${poseMetrics.leftElbowAngle}° 右膝:${poseMetrics.rightKneeAngle}°`
       : "【骨格データ】なし";
+
+    // インパクト時点の打点位置を、骨格座標（ball/racket検出で特定したインパクト時刻に
+    // 最も近い骨格フレーム）から計算した客観値。真横動画にはスケール基準が無いため
+    // 絶対cmではなく「胴体の長さ（肩〜腰）」に対する比率で表現する。
+    const impactMetricsDesc = impactMetrics && (impactMetrics.heightRatio !== null || impactMetrics.depthRatio !== null)
+      ? `\n【骨格計測による確定情報：打点の定量値（胴体長基準）】これは映像の見た目より信頼できる客観計測値である。診断（特にimpactCheck）はこの数値と矛盾しないこと。\n` +
+        (impactMetrics.heightRatio !== null ? `・打点の高さ：腰を0・肩を1とした比率で ${impactMetrics.heightRatio}（${impactMetrics.heightRatio >= 1 ? "肩より上" : impactMetrics.heightRatio >= 0.7 ? "肩に近い高さ" : impactMetrics.heightRatio >= 0.3 ? "腰〜肩の中間" : "腰に近い低い打点"}）\n` : "") +
+        (impactMetrics.depthRatio !== null ? `・打点の前後：体幹中心からの胴体長比で ${impactMetrics.depthRatio >= 0 ? "+" : ""}${impactMetrics.depthRatio}（${impactMetrics.depthRatio > 0.15 ? "明確に前方" : impactMetrics.depthRatio > -0.05 ? "体幹付近" : "後方寄り"}）\n` : "") +
+        (impactMetrics.elbowAngleDeg !== null ? `・インパクト時の肘角度：${impactMetrics.elbowAngleDeg}°\n` : "") +
+        `この数値を診断文中で言及する際は「打点は胴体の高さ比で${impactMetrics.heightRatio ?? "?"}（肩に近い／腰に近い等）」のように定量的かつ正直に表現し、実測のない絶対cmは創作しないこと。`
+      : "";
 
     // 骨格座標から計算した客観的なテイクバック判定（映像認識より信頼できる確定情報として扱う）
     // ※「引きすぎ」の概念はテイクバックがコンパクトであるべきボレー向け。
@@ -381,6 +398,7 @@ export async function POST(req: NextRequest) {
 ✅ 現在の痛み：${painDesc}（確定・変更不可）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${poseDesc}
+${impactMetricsDesc}
 ${takebackDesc}
 ${followDesc}
 ${prevContext}

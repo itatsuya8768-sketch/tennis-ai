@@ -9,6 +9,7 @@ import AdSlot from "@/components/AdSlot";
 import type { PlayerProfile, AIReport } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { findClosestBallContactFrame } from "@/lib/ballDetect";
+import { scanVideoForObjects, scoreImpactFrames, captureImpactWindow, computeBodyMetricsAtImpact } from "@/lib/impactDetect";
 
 const PAIN_AREAS = ["右肩","左肩","右肘（テニス肘）","左肘","右手首","左手首","腰（腰痛）","右膝","左膝","右足首","左足首"];
 const PAIN_LEVEL_LABELS = ["","軽い違和感","やや痛む","かなり痛む","激しい痛み"];
@@ -349,10 +350,9 @@ export default function HomePage() {
     if(!videoFile){alert("まず動画をアップロードしてください");return;}
     setStatus("loading");if(isMobile)setActiveTab("result");
     let frames:string[]=[];let metrics:PoseMetrics|null=null;let takeback:TakebackAnalysis|null=null;let followThrough:FollowThroughAnalysis|null=null;
-    let series:PoseFrame[]=[];let videoW=0,videoH=0;
+    let series:PoseFrame[]=[];
     if(videoRef.current){
       const v=videoRef.current;
-      videoW=v.videoWidth;videoH=v.videoHeight;
       try{poseRef.current?.clearSeries?.();}catch{}
       try{v.pause();v.muted=true;}catch{}
       setPoseActive(true); // モデル先読み＆オーバーレイ表示
@@ -375,38 +375,39 @@ export default function HomePage() {
     let frameTimes:number[]=[];
     if(videoUrl){try{const ex=await extractFrames(videoUrl,videoDuration??0);frames=ex.frames;frameTimes=ex.times;}catch(e){console.warn("extractFrames error",e);}}
     setDebugFrames(frames);setDebugBestIndex(null);
-    // ボール（テニスボール）を検出し、手首の位置と画像内で最も近づいたフレームを
-    // 「インパクトに最も近い」候補として特定する。骨格の動きだけから推測するより、
-    // 実際のボール位置を見るぶん信頼性が高い。検出できなければ何もしない（従来通り）。
-    let bestContactFrameIndex:number|null=null;
-    const BALL_DETECT_ENABLED=false; // 一時的に無効化（iOS Chromeでのエラー原因切り分け中）
-    if(BALL_DETECT_ENABLED&&frames.length>0&&series.length>0&&videoW>0&&videoH>0){
-      setDebugBallStatus("検出中…");
+    // ── インパクト検出パイプライン（動画→インパクト検出→打点位置推定） ──
+    // 既存の「ボール×手首の最近接フレーム」方式から、person/ball/racketを実フレームレートで
+    // 走査し、ball-racket距離＋ボール進行方向の反転を合成スコア化する方式に発展させたもの。
+    // iPhone Chromeで深刻な不具合（WebGL競合・ペイロード超過）を起こした経緯があるため、
+    // 十分なテストが済むまでは管理者アカウント（無制限プラン）のみに限定する。
+    const IMPACT_DETECT_ENABLED=usage?.plan==="unlimited";
+    let impactWindowFrames:string[]=[];
+    let impactMetrics:{heightRatio:number|null;depthRatio:number|null;elbowAngleDeg:number|null}|null=null;
+    if(IMPACT_DETECT_ENABLED&&videoUrl&&series.length>0){
+      setDebugBallStatus("インパクト検出中…");
       try{
-        const RIGHT=handedness!=="左利き";
-        const WRIST=RIGHT?16:15;
-        const wristSeries=series.filter(f=>f.pts[WRIST]&&(f.vis[WRIST]??0)>=0.3).map(f=>({time:f.t,x:f.pts[WRIST][0],y:f.pts[WRIST][1],videoW,videoH}));
-        let timedOut=false;
-        // モデルのダウンロード等が固まった場合に診断全体が止まらないよう、タイムアウトを設ける。
-        bestContactFrameIndex=await Promise.race([
-          findClosestBallContactFrame(frames,frameTimes,wristSeries),
-          new Promise<null>(res=>setTimeout(()=>{timedOut=true;res(null);},35000)),
+        const detected=await Promise.race([
+          scanVideoForObjects(videoUrl,{maxDurationSec:Math.min(videoDuration??8,8),everyNthFrame:2}),
+          new Promise<[]>(res=>setTimeout(()=>res([]),35000)),
         ]);
-        console.log("[ball detect] best contact frame index:",bestContactFrameIndex,"wristSeries件数",wristSeries.length);
-        setDebugBestIndex(bestContactFrameIndex);
-        setDebugBallStatus(
-          bestContactFrameIndex!==null ? `成功（${bestContactFrameIndex+1}枚目をインパクト候補として選択）`
-          : timedOut ? "失敗：モデル読み込みがタイムアウトしました（20秒）"
-          : "失敗：いずれの画像にもボールを検出できませんでした"
-        );
-      }catch(e){console.warn("ball detect error",e);setDebugBallStatus(`失敗：エラーが発生しました（${e instanceof Error?e.message:String(e)}）`);}
-    }else{
-      setDebugBallStatus(`スキップ：条件不足（frames=${frames.length}, series=${series.length}, videoW=${videoW}, videoH=${videoH}）`);
+        const impact=scoreImpactFrames(detected);
+        if(impact){
+          impactWindowFrames=await captureImpactWindow(videoUrl,impact.time,[-0.17,-0.08,0,0.08,0.17]);
+          const m=computeBodyMetricsAtImpact(series,impact.time,handedness);
+          impactMetrics={heightRatio:m.heightRatio,depthRatio:m.depthRatio,elbowAngleDeg:m.elbowAngleDeg};
+          setDebugBallStatus(`成功（インパクト候補 t=${impact.time.toFixed(2)}s, score=${impact.score.toFixed(2)}, 検出フレーム数=${detected.length}）`);
+        }else{
+          setDebugBallStatus(`失敗：インパクト候補なし（検出フレーム数=${detected.length}）`);
+        }
+      }catch(e){console.warn("impact detect error",e);setDebugBallStatus(`失敗：エラー（${e instanceof Error?e.message:String(e)}）`);}
     }
+    setDebugFrames(impactWindowFrames.length>0?impactWindowFrames:frames);
+    let bestContactFrameIndex:number|null=null; // 旧方式（互換のため残置。新方式が有効な間は使わない）
     try{
       const profile:PlayerProfile={handedness,forehand,forehandGrip:forehand==="両手打ち"?forehandGrip:undefined,backhand,foreVolley,backVolley,painAreas,painLevels:painLevels as Record<string,1|2|3|4>};
       const grips=GRIP_SLOTS.filter(s=>gripPhotos[s.key]).map(s=>({label:s.label,data:(gripPhotos[s.key]||"").split(",")[1]})).filter(g=>g.data);
-      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames,bestContactFrameIndex,grips,comparePlayer,shotCategory,shotType})});
+      const sendFrames=impactWindowFrames.length>0?impactWindowFrames:frames;
+      const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames:sendFrames,bestContactFrameIndex,impactMetrics,grips,comparePlayer,shotCategory,shotType})});
       // サーバーがJSON以外（サイズ上限超過時のエラーページ等）を返すことがあるため、
       // res.json() で分かりにくいSyntaxErrorになる前に判定して分かりやすいメッセージにする。
       const contentType=res.headers.get("content-type")??"";
