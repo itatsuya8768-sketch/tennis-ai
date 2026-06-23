@@ -8,7 +8,6 @@ import ReportCard from "@/components/ReportCard";
 import AdSlot from "@/components/AdSlot";
 import type { PlayerProfile, AIReport } from "@/types";
 import { createClient } from "@/lib/supabase/client";
-import { findClosestBallContactFrame } from "@/lib/ballDetect";
 import { scanVideoForObjects, scoreImpactFrames, captureImpactWindow, computeBodyMetricsAtImpact } from "@/lib/impactDetect";
 
 const PAIN_AREAS = ["右肩","左肩","右肘（テニス肘）","左肘","右手首","左手首","腰（腰痛）","右膝","左膝","右足首","左足首"];

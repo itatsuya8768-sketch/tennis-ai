@@ -22,11 +22,15 @@ let modelPromise: Promise<any> | null = null;
 async function getModel() {
   if (!modelPromise) {
     modelPromise = (async () => {
-      const tf = await import("@tensorflow/tfjs");
+      // 重要：umbrellaパッケージ "@tensorflow/tfjs" はWebGLバックエンドを同梱しており、
+      // setBackend("cpu") で明示的に切り替えても、import時の機能検出で一時的にWebGL
+      // コンテキストを作成してしまう（実際にこれでMediaPipeのコンテキストが失われた）。
+      // WebGLバックエンドのコードを一切バンドルしないよう、CPUバックエンドのみを
+      // 個別パッケージ（tfjs-core + tfjs-backend-cpu）からimportする。
+      const tf = await import("@tensorflow/tfjs-core");
+      await import("@tensorflow/tfjs-backend-cpu");
+      await import("@tensorflow/tfjs-converter");
       const cocoSsd = await import("@tensorflow-models/coco-ssd");
-      // MediaPipe（骨格検出）がWebGLコンテキストを保持し続けるため、tfjsもWebGLを使うと
-      // GPUコンテキストを取り合い、骨格検出まで巻き込んで壊れる（実際に発生した障害）。
-      // CPUバックエンドに固定してGPUリソースを共有しない。
       await tf.setBackend("cpu");
       await tf.ready();
       return cocoSsd.load({ base: "lite_mobilenet_v2" });
