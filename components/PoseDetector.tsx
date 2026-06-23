@@ -28,6 +28,8 @@ export interface PoseDetectorHandle {
   clearSeries: () => void;
   /** 動画を指定時刻にコマ送りして各コマで骨格検出する（確実な方式）。集まったフレーム数を返す。 */
   captureSeries: (times: number[]) => Promise<number>;
+  /** MediaPipeのWebGLコンテキストを解放する（他のGPU処理との競合を避けるため）。 */
+  closePose: () => Promise<void>;
 }
 
 function angleBetween(a: number[], b: number[], c: number[]) {
@@ -168,6 +170,15 @@ const PoseDetector = forwardRef<PoseDetectorHandle, Props>(
       getSeries: () => seriesRef.current,
       clearSeries: () => { seriesRef.current = []; },
       captureSeries,
+      // MediaPipeが保持しているWebGLコンテキストを明示的に解放する。
+      // 骨格データはもう取得済みで、これ以降の処理（TensorFlow.js等）がGPUを
+      // 使う場合にコンテキストを取り合って失われるのを防ぐために呼ぶ。
+      // 次回 ensurePose() が呼ばれた時点で自動的に再生成される。
+      closePose: async () => {
+        try { await poseRef.current?.close?.(); } catch {}
+        poseRef.current = null;
+        readyRef.current = null;
+      },
     }), [captureSeries]);
 
     // active になったら骨格モデルを先読みしておく（実際の検出はコマ送りで行う）

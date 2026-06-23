@@ -384,6 +384,9 @@ export default function HomePage() {
     let impactWindowFrames:string[]=[];
     let impactMetrics:{heightRatio:number|null;depthRatio:number|null;elbowAngleDeg:number|null}|null=null;
     if(IMPACT_DETECT_ENABLED&&videoUrl&&series.length>0){
+      // MediaPipeのGLコンテキストを解放してから検出する（GPUリソースの競合防止）。
+      // 骨格データ（series）は既に取得済みなので、ここで閉じても支障はない。
+      try{await poseRef.current?.closePose?.();}catch{}
       setDebugBallStatus("インパクト検出中…");
       try{
         const detected=await Promise.race([
