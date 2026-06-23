@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 
-const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
+// 一時的に無効化中：WebGLコンテキストが奪われる不具合の原因切り分けのため、
+// AdSenseスクリプト（Googleの自動広告がページをスキャンする際にCanvas/WebGLを
+// 使う可能性がある）を一旦外して検証する。
+const ADSENSE_CLIENT = undefined as string | undefined; // process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
 
 export const metadata: Metadata = {
   title: "TennisAI365Coach - AIフォーム診断",
