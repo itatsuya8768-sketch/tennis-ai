@@ -188,29 +188,31 @@ async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];ti
     const failReasons:string[]=[];
     const captureAt=(time:number):Promise<string|null>=>{
       return new Promise((res)=>{
-        const tid=setTimeout(()=>{failReasons.push(`t=${time.toFixed(2)}:タイムアウト`);res(null);},4000);
-        const draw=()=>{
-          clearTimeout(tid);
+        // 'seeked'イベントに依存すると、発火しない/遅れるブラウザ・動画で永久に
+        // タイムアウトしてしまう（実際にこの環境で全件タイムアウトしていた）。
+        // イベントを待たず、currentTimeが目標値に近づくまで直接ポーリングする方式に変更。
+        const deadline=Date.now()+4000;
+        const poll=()=>{
           try{
-            const c=document.createElement("canvas");c.width=560;c.height=315;
-            const ctx=c.getContext("2d");
-            if(!ctx){failReasons.push(`t=${time.toFixed(2)}:canvas context取得失敗`);res(null);return;}
-            ctx.drawImage(video,0,0,560,315);
-            const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];
-            if(b64&&b64.length>500){res(b64);}else{failReasons.push(`t=${time.toFixed(2)}:画像サイズ不足(${b64?.length??0}文字)`);res(null);}
-          }catch(e){failReasons.push(`t=${time.toFixed(2)}:例外(${e instanceof Error?e.message:String(e)})`);res(null);}
+            const close=Math.abs(video.currentTime-time)<0.12;
+            const ready=video.readyState>=2; // HAVE_CURRENT_DATA以上
+            if((close&&ready)||Date.now()>deadline){
+              if(!close&&Date.now()>deadline)failReasons.push(`t=${time.toFixed(2)}:タイムアウト（実際position=${video.currentTime.toFixed(2)}, readyState=${video.readyState}）`);
+              try{
+                const c=document.createElement("canvas");c.width=560;c.height=315;
+                const ctx=c.getContext("2d");
+                if(!ctx){failReasons.push(`t=${time.toFixed(2)}:canvas context取得失敗`);res(null);return;}
+                ctx.drawImage(video,0,0,560,315);
+                const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];
+                if(b64&&b64.length>500){res(b64);}else{failReasons.push(`t=${time.toFixed(2)}:画像サイズ不足(${b64?.length??0}文字)`);res(null);}
+              }catch(e){failReasons.push(`t=${time.toFixed(2)}:例外(${e instanceof Error?e.message:String(e)})`);res(null);}
+              return;
+            }
+            requestAnimationFrame(poll);
+          }catch(e){failReasons.push(`t=${time.toFixed(2)}:poll例外(${e instanceof Error?e.message:String(e)})`);res(null);}
         };
-        let drawn=false;
-        const drawOnce=()=>{if(!drawn){drawn=true;draw();}};
-        video.onseeked=()=>{
-          // seeked直後はデコードが追いついておらず、1つ前のフレームが描画されることがある。
-          // 対応ブラウザでは requestVideoFrameCallback で「実際に表示用に準備できた瞬間」まで待つが、
-          // シーク後に発火しない実装もあるため、短いフォールバックで必ず描画を確定させる。
-          const rvfc=(video as any).requestVideoFrameCallback;
-          if(typeof rvfc==="function"){(video as any).requestVideoFrameCallback(drawOnce);}
-          setTimeout(drawOnce,150);
-        };
-        video.currentTime=time;
+        try{video.currentTime=time;}catch(e){failReasons.push(`t=${time.toFixed(2)}:currentTime設定失敗(${e instanceof Error?e.message:String(e)})`);res(null);return;}
+        requestAnimationFrame(poll);
       });
     };
     const originalTime=video.currentTime;
