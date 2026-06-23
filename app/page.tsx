@@ -181,16 +181,24 @@ function SiteBanner() {
 // 以前は別の<video>要素を新規生成してURLを読み込み直していたが、同じ動画を二重に
 // デコードする負荷がかかり、低スペック端末で頻繁に失敗（フレーム0枚）していた。
 // 既にロード済み・再生確認済みの要素を再利用することで読み込み自体の失敗を避ける。
-async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];times:number[]}> {
+async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];times:number[];failReasons:string[]}> {
   return new Promise((resolve)=>{
     const results:string[]=[];
     const resultTimes:number[]=[];
+    const failReasons:string[]=[];
     const captureAt=(time:number):Promise<string|null>=>{
       return new Promise((res)=>{
-        const tid=setTimeout(()=>res(null),4000);
+        const tid=setTimeout(()=>{failReasons.push(`t=${time.toFixed(2)}:タイムアウト`);res(null);},4000);
         const draw=()=>{
           clearTimeout(tid);
-          try{const c=document.createElement("canvas");c.width=560;c.height=315;const ctx=c.getContext("2d");if(!ctx){res(null);return;}ctx.drawImage(video,0,0,560,315);const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];res(b64&&b64.length>500?b64:null);}catch{res(null);}
+          try{
+            const c=document.createElement("canvas");c.width=560;c.height=315;
+            const ctx=c.getContext("2d");
+            if(!ctx){failReasons.push(`t=${time.toFixed(2)}:canvas context取得失敗`);res(null);return;}
+            ctx.drawImage(video,0,0,560,315);
+            const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];
+            if(b64&&b64.length>500){res(b64);}else{failReasons.push(`t=${time.toFixed(2)}:画像サイズ不足(${b64?.length??0}文字)`);res(null);}
+          }catch(e){failReasons.push(`t=${time.toFixed(2)}:例外(${e instanceof Error?e.message:String(e)})`);res(null);}
         };
         let drawn=false;
         const drawOnce=()=>{if(!drawn){drawn=true;draw();}};
@@ -209,7 +217,7 @@ async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];ti
     const run=async()=>{
       try{
         const dur=video.duration;
-        if(!dur||!isFinite(dur)||dur<0.1){resolve({frames:[],times:[]});return;}
+        if(!dur||!isFinite(dur)||dur<0.1){failReasons.push(`動画の長さが不正（duration=${dur}）`);resolve({frames:[],times:[],failReasons});return;}
         // 骨格トラッキングはスイングが速いほど（ブレが大きいほど）信頼度が落ちやすく、
         // 「動きが活発な区間」の検出がまさに接触の瞬間付近で外れるリスクがあるため、
         // 区間を絞らず動画全体（最大10秒）をシンプルに高密度で均等抽出する。
@@ -221,18 +229,19 @@ async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];ti
         const FRAME_COUNT=Math.max(14,Math.min(18,Math.round(scanRange/0.3)));
         for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
         for(const t of times){const b64=await captureAt(t);if(b64){results.push(b64);resultTimes.push(t);}}
-        console.log(`フレーム抽出結果: ${results.length}枚`);
+        console.log(`フレーム抽出結果: ${results.length}枚`,failReasons);
         try{video.currentTime=originalTime;}catch{}
-        resolve({frames:results,times:resultTimes});
+        resolve({frames:results,times:resultTimes,failReasons});
       }catch(e){
         console.warn("extractFrames:",e);
+        failReasons.push(`run例外:${e instanceof Error?e.message:String(e)}`);
         try{video.currentTime=originalTime;}catch{}
-        resolve({frames:[],times:[]});
+        resolve({frames:[],times:[],failReasons});
       }
     };
     // フレーム数を増やした分、全体の安全タイムアウトも枚数に応じて延ばす
     // （1枚あたり最大4秒・全枚数を捌くのに必要な時間＋余裕を確保）。
-    run();setTimeout(()=>{try{video.currentTime=originalTime;}catch{};resolve({frames:results,times:resultTimes});},90000);
+    run();setTimeout(()=>{try{video.currentTime=originalTime;}catch{};resolve({frames:results,times:resultTimes,failReasons});},90000);
   });
 }
 
@@ -365,7 +374,8 @@ export default function HomePage() {
       }catch(e:any){console.warn("pose analysis error",e);}
     }
     let frameTimes:number[]=[];
-    if(videoRef.current){try{const ex=await extractFrames(videoRef.current);frames=ex.frames;frameTimes=ex.times;}catch(e){console.warn("extractFrames error",e);}}
+    let frameFailReasons:string[]=[];
+    if(videoRef.current){try{const ex=await extractFrames(videoRef.current);frames=ex.frames;frameTimes=ex.times;frameFailReasons=ex.failReasons;}catch(e){console.warn("extractFrames error",e);frameFailReasons=[`呼び出し失敗:${e instanceof Error?e.message:String(e)}`];}}
     setDebugFrames(frames);setDebugBestIndex(null);
     // ── インパクト検出パイプライン（動画→インパクト検出→打点位置推定） ──
     // 既存の「ボール×手首の最近接フレーム」方式から、person/ball/racketを実フレームレートで
@@ -406,7 +416,8 @@ export default function HomePage() {
       // （前回比較の文脈）を流用して「分析できているように見える」結果をAIが返してしまい、
       // ユーザーが気づけない。動画フレームが無い場合はグリップ写真の有無に関わらず止める。
       if(sendFrames.length===0){
-        throw new Error("動画フレームを取得できませんでした。お手数ですが、動画を選び直して再度お試しください（うまくいかない場合は、別の動画や短い動画でお試しください）。");
+        const reasonSample=frameFailReasons.slice(0,3).join(" / ");
+        throw new Error(`動画フレームを取得できませんでした。お手数ですが、動画を選び直して再度お試しください（うまくいかない場合は、別の動画や短い動画でお試しください）。\n[詳細] ${reasonSample||"原因不明"}${frameFailReasons.length>3?` 他${frameFailReasons.length-3}件`:""}`);
       }
       const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,poseMetrics:metrics,takeback,followThrough,frames:sendFrames,bestContactFrameIndex,impactMetrics,grips,comparePlayer,shotCategory,shotType})});
       // サーバーがJSON以外（サイズ上限超過時のエラーページ等）を返すことがあるため、
