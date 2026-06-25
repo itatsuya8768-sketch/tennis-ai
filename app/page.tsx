@@ -489,7 +489,7 @@ export default function HomePage() {
 
       <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"16px 12px":"24px 20px",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 1fr",gap:24,width:"100%",boxSizing:"border-box"}}>
 
-        {showLeft&&<div style={{minWidth:0}}>
+        <div style={{minWidth:0,display:showLeft?undefined:"none"}}>
           {/* STEP 1 */}
           <SectionCard>
             <StepLabel number={1} title="基本スタイル"/>
@@ -565,9 +565,9 @@ export default function HomePage() {
             {usage && <div style={{textAlign:"center",marginTop:10,fontSize:12,fontWeight:700,color:usage.plan==="unlimited"?"#3ddc97":(usage.remaining===0?"#ff6b6b":"#aeb2b8")}}>{usage.plan==="unlimited"?"✨ 無制限でご利用いただけます":usage.plan==="premium"?`今月あと ${usage.remaining} 回です（月${usage.limit}回）`:usage.remaining===0?`無料診断（全${usage.limit}回）を使い切りました。続けるにはPremiumへ`:`無料診断 残り ${usage.remaining} 回（全${usage.limit}回）`}</div>}
           </SectionCard>
           <SiteBanner/>
-        </div>}
+        </div>
 
-        {showRight&&<div style={{minWidth:0}}>
+        <div style={{minWidth:0,display:showRight?undefined:"none"}}>
           {/* 動画プレビュー */}
           <div style={{background:"#0f172a",borderRadius:20,overflow:"hidden",position:"relative",marginBottom:16,aspectRatio:"16/9",display:"flex",alignItems:"center",justifyContent:"center"}}>
             {videoUrl?<><video ref={videoRef} src={videoUrl} onError={()=>setVideoErr(true)} onLoadedData={()=>setVideoErr(false)} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}} controls muted playsInline/><PoseDetector ref={poseRef} videoRef={videoRef} active={poseActive} onMetrics={setPoseMetrics}/></>:<div style={{textAlign:"center",color:"#aeb2b8",padding:16}}><svg width="160" height="100" viewBox="0 0 160 100" style={{display:"block",margin:"0 auto 12px"}}><circle cx="80" cy="12" r="8" fill="#3ddc97" opacity="0.7"/><line x1="80" y1="20" x2="80" y2="48" stroke="#3ddc97" strokeWidth="2.5"/><line x1="80" y1="34" x2="48" y2="58" stroke="#3ddc97" strokeWidth="2.5"/><line x1="80" y1="34" x2="112" y2="58" stroke="#3ddc97" strokeWidth="2.5"/><line x1="80" y1="48" x2="62" y2="88" stroke="#3ddc97" strokeWidth="2.5"/><line x1="80" y1="48" x2="98" y2="88" stroke="#3ddc97" strokeWidth="2.5"/>{([[48,58],[112,58],[62,88],[98,88],[80,48]] as [number,number][]).map(([x,y],i)=><circle key={i} cx={x} cy={y} r={4} fill="#2bc47f" opacity="0.8"/>)}</svg><div style={{fontSize:13,fontWeight:700}}>骨格ワイヤーフレーム</div><div style={{fontSize:11,marginTop:4,color:"#8b8f97"}}>動画をアップロードすると関節ポイントが表示されます</div></div>}
@@ -662,7 +662,7 @@ export default function HomePage() {
               <button onClick={goPremium} style={{width:"100%",padding:"16px",borderRadius:12,background:"linear-gradient(90deg,#3ddc97,#2bc47f)",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(61,220,151,0.4)"}}>Stripeで今すぐ登録 ¥999/月</button>
             </div>}
           </div>}
-        </div>}
+        </div>
       </div>
       <footer style={{maxWidth:1200,margin:"0 auto",padding:"4px 20px 16px",textAlign:"right"}}>
         <div style={{fontSize:11,color:"#3a3d44"}}>
