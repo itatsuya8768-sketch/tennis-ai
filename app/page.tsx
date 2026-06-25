@@ -260,7 +260,6 @@ async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];ti
           }
         });
 
-        console.log(`フレーム抽出結果: ${results.length}枚`,failReasons);
         cleanup();
         resolve({frames:results,times:resultTimes,failReasons});
       }catch(e){
@@ -399,7 +398,6 @@ export default function HomePage() {
         series=poseRef.current?.getSeries?.()??[];
         takeback=analyzeTakeback(series,handedness);
         followThrough=analyzeFollowThrough(series,handedness);
-        console.log("[takeback]",takeback,"[followThrough]",followThrough,"series",series.length);
       }catch(e:any){console.warn("pose analysis error",e);}
     }
     let frameTimes:number[]=[];
@@ -582,8 +580,8 @@ export default function HomePage() {
           {status==="error"&&<SectionCard style={{textAlign:"center",padding:"32px 24px"}}><div style={{fontSize:40,marginBottom:12}}>⚠️</div><div style={{fontSize:14,fontWeight:700,color:"#ff6b6b",marginBottom:8}}>診断中にエラーが発生しました</div><div style={{fontSize:11,color:"#aeb2b8",marginBottom:16,whiteSpace:"pre-wrap",textAlign:"left",fontFamily:"monospace",background:"#14161a",borderRadius:8,padding:"10px 12px",overflowX:"auto"}}>{errMsg}</div><button onClick={()=>setStatus("idle")} style={{padding:"10px 24px",borderRadius:10,background:"#1c1f24",border:"1px solid #2a2d33",color:"#aeb2b8",fontWeight:700,cursor:"pointer"}}>もう一度試す</button></SectionCard>}
 
           {status==="done"&&report&&<div>
-            {/* デバッグ用：AIに実際に送ったフレームを確認できるようにする（一時的） */}
-            {debugFrames.length>0&&<details style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
+            {/* 管理者（無制限プラン）限定：AIに実際に送ったフレームを確認するデバッグ表示 */}
+            {usage?.plan==="unlimited"&&debugFrames.length>0&&<details style={{background:"#1c1f24",border:"1px solid #2a2d33",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
               <summary style={{cursor:"pointer",fontSize:12,fontWeight:700,color:"#aeb2b8"}}>🔍 AIに送ったフレームを確認（{debugFrames.length}枚・デバッグ用）{debugBestIndex!==null&&" ※緑枠＝ボール検出によるインパクト候補"}</summary>
               {debugBallStatus&&<div style={{fontSize:11,color:"#4ea1ff",marginTop:8}}>ボール検出：{debugBallStatus}</div>}
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
