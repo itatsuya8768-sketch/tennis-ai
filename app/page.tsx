@@ -224,15 +224,21 @@ async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];ti
         await video.play().catch((e)=>{failReasons.push(`play失敗:${e instanceof Error?e.message:String(e)}`);});
 
         let targetIdx=0;
+        let frameCallbackCount=0;
         const hasRVFC=typeof (video as any).requestVideoFrameCallback==="function";
+        failReasons.push(`診断情報: hasRVFC=${hasRVFC}, duration=${dur.toFixed(2)}, paused直後=${video.paused}`);
 
         await new Promise<void>((doneRes)=>{
           let finished=false;
           const finish=()=>{if(!finished){finished=true;doneRes();}};
-          const overallTid=setTimeout(finish,20000);
+          const overallTid=setTimeout(()=>{
+            failReasons.push(`診断情報: 20秒タイムアウト時点 currentTime=${video.currentTime.toFixed(2)}, paused=${video.paused}, ended=${video.ended}, frameCallback呼び出し回数=${frameCallbackCount}, targetIdx=${targetIdx}/${targetTimes.length}, readyState=${video.readyState}`);
+            finish();
+          },20000);
 
           const onFrame=(mediaTime:number)=>{
             if(finished)return;
+            frameCallbackCount++;
             // 再生中、ターゲット時刻に最も近いタイミングで都度キャプチャする
             while(targetIdx<targetTimes.length&&mediaTime>=targetTimes[targetIdx]-0.05){
               const b64=captureCanvas();
