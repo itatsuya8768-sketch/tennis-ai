@@ -178,72 +178,93 @@ function SiteBanner() {
 }
 
 // 画面に表示している動画要素（videoRef.current）をそのまま使ってフレームを抜く。
-// 以前は別の<video>要素を新規生成してURLを読み込み直していたが、同じ動画を二重に
-// デコードする負荷がかかり、低スペック端末で頻繁に失敗（フレーム0枚）していた。
-// 既にロード済み・再生確認済みの要素を再利用することで読み込み自体の失敗を避ける。
+// シーク（currentTimeを飛ばしてコマ送り）方式は、この環境では『currentTimeは更新され
+// readyStateも"準備済み"を示すのに、実際の描画は真っ黒（デコードが追いついていない）』
+// という不具合が起きていた。そのため、動画を実際に再生しながら、来たフレームを
+// その都度キャプチャする方式に変更する（再生中は確実にデコードされたピクセルが手に入る）。
 async function extractFrames(video:HTMLVideoElement):Promise<{frames:string[];times:number[];failReasons:string[]}> {
   return new Promise((resolve)=>{
     const results:string[]=[];
     const resultTimes:number[]=[];
     const failReasons:string[]=[];
-    const captureAt=(time:number):Promise<string|null>=>{
-      return new Promise((res)=>{
-        // 'seeked'イベントに依存すると、発火しない/遅れるブラウザ・動画で永久に
-        // タイムアウトしてしまう（実際にこの環境で全件タイムアウトしていた）。
-        // イベントを待たず、currentTimeが目標値に近づくまで直接ポーリングする方式に変更。
-        const deadline=Date.now()+4000;
-        const poll=()=>{
-          try{
-            const close=Math.abs(video.currentTime-time)<0.12;
-            const ready=video.readyState>=2; // HAVE_CURRENT_DATA以上
-            if((close&&ready)||Date.now()>deadline){
-              if(!close&&Date.now()>deadline)failReasons.push(`t=${time.toFixed(2)}:タイムアウト（実際position=${video.currentTime.toFixed(2)}, readyState=${video.readyState}）`);
-              try{
-                const c=document.createElement("canvas");c.width=560;c.height=315;
-                const ctx=c.getContext("2d");
-                if(!ctx){failReasons.push(`t=${time.toFixed(2)}:canvas context取得失敗`);res(null);return;}
-                ctx.drawImage(video,0,0,560,315);
-                const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];
-                if(b64&&b64.length>500){res(b64);}else{failReasons.push(`t=${time.toFixed(2)}:画像サイズ不足(${b64?.length??0}文字)`);res(null);}
-              }catch(e){failReasons.push(`t=${time.toFixed(2)}:例外(${e instanceof Error?e.message:String(e)})`);res(null);}
-              return;
-            }
-            requestAnimationFrame(poll);
-          }catch(e){failReasons.push(`t=${time.toFixed(2)}:poll例外(${e instanceof Error?e.message:String(e)})`);res(null);}
-        };
-        try{video.currentTime=time;}catch(e){failReasons.push(`t=${time.toFixed(2)}:currentTime設定失敗(${e instanceof Error?e.message:String(e)})`);res(null);return;}
-        requestAnimationFrame(poll);
-      });
-    };
     const originalTime=video.currentTime;
+    const wasMuted=video.muted;
+
+    const captureCanvas=(): string|null => {
+      try{
+        const c=document.createElement("canvas");c.width=560;c.height=315;
+        const ctx=c.getContext("2d");
+        if(!ctx)return null;
+        ctx.drawImage(video,0,0,560,315);
+        const b64=c.toDataURL("image/jpeg",0.6).split(",")[1];
+        return b64&&b64.length>500?b64:null;
+      }catch{return null;}
+    };
+
+    const cleanup=()=>{
+      try{video.pause();}catch{}
+      try{video.muted=wasMuted;}catch{}
+      try{video.currentTime=originalTime;}catch{}
+    };
+
     const run=async()=>{
       try{
         const dur=video.duration;
-        if(!dur||!isFinite(dur)||dur<0.1){failReasons.push(`動画の長さが不正（duration=${dur}）`);resolve({frames:[],times:[],failReasons});return;}
-        // 骨格トラッキングはスイングが速いほど（ブレが大きいほど）信頼度が落ちやすく、
-        // 「動きが活発な区間」の検出がまさに接触の瞬間付近で外れるリスクがあるため、
-        // 区間を絞らず動画全体（最大10秒）をシンプルに高密度で均等抽出する。
-        const times:number[]=[];
+        if(!dur||!isFinite(dur)||dur<0.1){failReasons.push(`動画の長さが不正（duration=${dur}）`);cleanup();resolve({frames:[],times:[],failReasons});return;}
+
         const scanRange=Math.min(dur,10);
+        // 枚数を増やすほどリクエストのペイロードが大きくなるため上限を抑える。
+        const TARGET_COUNT=Math.max(14,Math.min(18,Math.round(scanRange/0.3)));
+        const targetTimes:number[]=[];
         const start=Math.min(0.3,scanRange*0.05);const end=Math.max(start,scanRange-0.1);
-        // 枚数を増やすほどリクエストのペイロードが大きくなり、サーバー側の上限に
-        // 引っかかって失敗するリスクがあるため、上限を抑える（画質も下げて対応）。
-        const FRAME_COUNT=Math.max(14,Math.min(18,Math.round(scanRange/0.3)));
-        for(let i=0;i<FRAME_COUNT;i++){const t=start+(end-start)*(i/(FRAME_COUNT-1));times.push(Math.max(0,Math.min(t,dur-0.05)));}
-        for(const t of times){const b64=await captureAt(t);if(b64){results.push(b64);resultTimes.push(t);}}
+        for(let i=0;i<TARGET_COUNT;i++){targetTimes.push(start+(end-start)*(i/(TARGET_COUNT-1)));}
+
+        try{video.currentTime=0;}catch{}
+        video.muted=true;
+        await video.play().catch((e)=>{failReasons.push(`play失敗:${e instanceof Error?e.message:String(e)}`);});
+
+        let targetIdx=0;
+        const hasRVFC=typeof (video as any).requestVideoFrameCallback==="function";
+
+        await new Promise<void>((doneRes)=>{
+          let finished=false;
+          const finish=()=>{if(!finished){finished=true;doneRes();}};
+          const overallTid=setTimeout(finish,20000);
+
+          const onFrame=(mediaTime:number)=>{
+            if(finished)return;
+            // 再生中、ターゲット時刻に最も近いタイミングで都度キャプチャする
+            while(targetIdx<targetTimes.length&&mediaTime>=targetTimes[targetIdx]-0.05){
+              const b64=captureCanvas();
+              if(b64){results.push(b64);resultTimes.push(mediaTime);}
+              else{failReasons.push(`t=${targetTimes[targetIdx].toFixed(2)}:キャプチャ失敗（再生中）`);}
+              targetIdx++;
+            }
+            if(targetIdx>=targetTimes.length||mediaTime>=scanRange||video.ended){clearTimeout(overallTid);finish();return;}
+            if(hasRVFC)(video as any).requestVideoFrameCallback((_n:number,meta:any)=>onFrame(meta?.mediaTime??video.currentTime));
+          };
+
+          if(hasRVFC){
+            (video as any).requestVideoFrameCallback((_n:number,meta:any)=>onFrame(meta?.mediaTime??video.currentTime));
+          }else{
+            // requestVideoFrameCallback未対応ブラウザ向けフォールバック
+            const onTick=()=>onFrame(video.currentTime);
+            video.addEventListener("timeupdate",onTick);
+            setTimeout(()=>video.removeEventListener("timeupdate",onTick),20000);
+          }
+        });
+
         console.log(`フレーム抽出結果: ${results.length}枚`,failReasons);
-        try{video.currentTime=originalTime;}catch{}
+        cleanup();
         resolve({frames:results,times:resultTimes,failReasons});
       }catch(e){
         console.warn("extractFrames:",e);
         failReasons.push(`run例外:${e instanceof Error?e.message:String(e)}`);
-        try{video.currentTime=originalTime;}catch{}
+        cleanup();
         resolve({frames:[],times:[],failReasons});
       }
     };
-    // フレーム数を増やした分、全体の安全タイムアウトも枚数に応じて延ばす
-    // （1枚あたり最大4秒・全枚数を捌くのに必要な時間＋余裕を確保）。
-    run();setTimeout(()=>{try{video.currentTime=originalTime;}catch{};resolve({frames:results,times:resultTimes,failReasons});},90000);
+    run();setTimeout(()=>{cleanup();resolve({frames:results,times:resultTimes,failReasons});},35000);
   });
 }
 
